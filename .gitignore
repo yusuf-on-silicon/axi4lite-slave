@@ -1,0 +1,22 @@
+# Compiled simulation files
+*.o
+*.out
+*.exe
+*.dll
+*.so
+*.vcd
+*.wlf
+transcript
+vsim.wlf
+work/
+
+# Vivado/Quartus temp stuff (if later used)
+*.jou
+*.log
+*.str
+*.xpr
+.Xil/
+
+# OS files
+.DS_Store
+Thumbs.db
