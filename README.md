@@ -5,21 +5,21 @@ TO ADD :-
 2. sttructure
 3. enhancements
 
-2. Strucutre
-axi4lite-slave/
-│── src/              # RTL source files (Verilog/VHDL)
-│   ├── axi_slave.vhd
-│   ├── axi_write_channel.vhd
-│   └── ...
-│
-│── tb/               # Testbenches
-│   ├── tb_axi_slave.vhd
-│   └── ...
-│
-│── sim/              # Simulation scripts (ModelSim/Vivado/Verilator run.do, etc.)
-│
-│── docs/             # Diagrams, notes, AXI protocol reference
-│
-│── Makefile          # For running simulations (optional, later we’ll add)
-│── README.md         # Project overview
-│── .gitignore
+2. Strucutre  
+axi4lite-slave/  
+│── src/              # RTL source files (Verilog/VHDL)  
+│   ├── axi_slave.vhd  
+│   ├── axi_write_channel.vhd  
+│   └── ...  
+│  
+│── tb/               # Testbenches  
+│   ├── tb_axi_slave.vhd  
+│   └── ...  
+│  
+│── sim/              # Simulation scripts (ModelSim/Vivado/Verilator run.do, etc.)  
+│  
+│── docs/             # Diagrams, notes, AXI protocol reference  
+│  
+│── Makefile          # For running simulations (optional, later we’ll add)  
+│── README.md         # Project overview  
+│── .gitignore  
