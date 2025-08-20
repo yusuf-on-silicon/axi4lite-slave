@@ -33,11 +33,10 @@ integer i=0                              ;
 //Write
 always @(posedge clk) begin
     if (WEN) begin
-        for (i = 0; i < strbWidth; i++) begin
-            if (WSTRB[i] == 1) begin
-                memory[AWADDR][i*8+7:i*8] <= WDATA[i*8+7:i*8];
-            end
-        end
+        if (WSTRB[0]) memory[AWADDR][7:0]    <= WDATA[7:0];
+        if (WSTRB[1]) memory[AWADDR][15:8]   <= WDATA[15:8];
+        if (WSTRB[2]) memory[AWADDR][23:16]  <= WDATA[23:16];
+        if (WSTRB[3]) memory[AWADDR][31:24]  <= WDATA[31:24];
     end
 end
 

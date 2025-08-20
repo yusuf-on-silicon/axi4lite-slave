@@ -1,26 +1,18 @@
 `timescale 1ns/1ps
 
-module TBmemory#(
-parameter addrWidth = 6     ,
-parameter dataWidth = 32    ,
-parameter strbWidth = 4     
-)();
-reg                  clk    ;
-reg                  reset  ;
+module TBmemory()
 
-reg                  WEN    ;
-reg[addrWidth-1:0]   AWADDR ;
-reg[strbWidth-1:0]   WSTRB  ;
-reg[dataWidth-1:0]   WDATA  ;
+wire                 clk    ;
+wire                 reset  ;
 
-reg                  REN    ;
-reg[addrWidth-1:0]   ARADDR ;
+wire                 WEN    ;
+wire[addrWidth-1:0]  AWADDR ;
+wire[strbWidth-1:0]  WSTRB  ;
+wire[dataWidth-1:0]  WDATA  ;
+
+wire                 REN    ;
+wire[addrWidth-1:0]  ARADDR ;
 wire[dataWidth-1:0]  RDATA  ;
-
-initial begin
-    clk = 0;
-    forever #5 clk = ~clk ; // 100 MHz write clock
-end
 
 memory uut(
     .clk   (clk   ) ,
@@ -39,21 +31,23 @@ memory uut(
 initial begin
     clk    = 0 ;
     WEN    = 0 ;
-    REN     = 0 ;
+    REN    = 0 ;
     AWADDR = 0 ;
     ARADDR = 0 ;
     WSTRB  = 0 ;
     WDATA  = 0 ;
+    RDATA  = 0 ;
     reset  = 0 ;
     #20
     reset  = 1 ;
 end
 
-initial begin
+always #10 clk = ~clk;
+
 //WRITE REPEAT
 WEN    = 1  ;
 AWADDR = 12 ;
-WDATA  = 32'b10101010000000001100110011000011  ;
+WDATA  = 32'b101010100000000011001100110000011  ;
 WSTRB  = 4'b1011                                ;
 # 20        ;
 WEN    = 0  ;
@@ -63,7 +57,5 @@ REN    = 1  ;
 ARADDR = 12 ;
 # 20        ;
 REN    = 0  ;
-# 20        ;
-$finish     ;
-end
+
 endmodule

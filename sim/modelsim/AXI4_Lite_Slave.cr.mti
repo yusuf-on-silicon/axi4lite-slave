@@ -1,0 +1,15 @@
+C:/Users/Yusuf/Documents/Production/VLSI/Projects/AXI4-Lite/tb/TBmemoryTemp.v {1 {vlog -work work -stats=none C:/Users/Yusuf/Documents/Production/VLSI/Projects/AXI4-Lite/tb/TBmemoryTemp.v
+Model Technology ModelSim - Intel FPGA Edition vlog 2020.1 Compiler 2020.02 Feb 28 2020
+-- Compiling module TBmemory
+
+Top level modules:
+	TBmemory
+
+} {} {}} C:/Users/Yusuf/Documents/Production/VLSI/Projects/AXI4-Lite/rtl/memory/memory.v {1 {vlog -work work -stats=none C:/Users/Yusuf/Documents/Production/VLSI/Projects/AXI4-Lite/rtl/memory/memory.v
+Model Technology ModelSim - Intel FPGA Edition vlog 2020.1 Compiler 2020.02 Feb 28 2020
+-- Compiling module memory
+
+Top level modules:
+	memory
+
+} {} {}}
