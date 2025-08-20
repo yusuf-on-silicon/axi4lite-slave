@@ -13,7 +13,7 @@ output wire               AWREADY ,
 
 input  wire               WVALID  ,
 input  wire[dataWidth:0]  WDATA   ,
-input  wire[3:0]          WSTRB   ,
+input  wire[strbWidth:0]  WSTRB   ,
 output wire               WREADY  ,
 
 input  wire               BREADY  ,
@@ -29,6 +29,8 @@ output wire[dataWidth:0]  RDATA   ,
 output wire[1:0]          RRESP   ,
 output wire               RVALID  
 );
+
+//MEMORY INITIALISATION
 
 wire WEN,REN = 0;
 endmodule
