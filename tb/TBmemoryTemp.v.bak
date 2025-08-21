@@ -1,0 +1,61 @@
+`timescale 1ns/1ps
+
+module TBmemory()
+
+wire                 clk    ;
+wire                 reset  ;
+
+wire                 WEN    ;
+wire[addrWidth-1:0]  AWADDR ;
+wire[strbWidth-1:0]  WSTRB  ;
+wire[dataWidth-1:0]  WDATA  ;
+
+wire                 REN    ;
+wire[addrWidth-1:0]  ARADDR ;
+wire[dataWidth-1:0]  RDATA  ;
+
+memory uut(
+    .clk   (clk   ) ,
+    .reset (reset ) ,
+    
+    .WEN   (WEN   ) ,
+    .AWADDR(AWADDR) ,
+    .WSTRB (WSTRB ) ,
+    .WDATA (WDATA ) ,
+    
+    .REN   (REN   ) ,
+    .ARADDR(ARADDR) ,
+    .RDATA (RDATA )
+);
+
+initial begin
+    clk    = 0 ;
+    WEN    = 0 ;
+    REN    = 0 ;
+    AWADDR = 0 ;
+    ARADDR = 0 ;
+    WSTRB  = 0 ;
+    WDATA  = 0 ;
+    RDATA  = 0 ;
+    reset  = 0 ;
+    #20
+    reset  = 1 ;
+end
+
+always #10 clk = ~clk;
+
+//WRITE REPEAT
+WEN    = 1  ;
+AWADDR = 12 ;
+WDATA  = 32'b101010100000000011001100110000011  ;
+WSTRB  = 4'b1011                                ;
+# 20        ;
+WEN    = 0  ;
+
+//READ REPEAT
+REN    = 1  ;
+ARADDR = 12 ;
+# 20        ;
+REN    = 0  ;
+
+endmodule
