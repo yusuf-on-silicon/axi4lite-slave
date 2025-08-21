@@ -1,4 +1,7 @@
 # Compiled simulation files
+*.mti
+*.mpf
+*.bak
 *.o
 *.out
 *.exe
@@ -8,7 +11,7 @@
 *.wlf
 transcript
 vsim.wlf
-work/
+build/
 
 # Vivado/Quartus temp stuff (if later used)
 *.jou

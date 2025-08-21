@@ -6,20 +6,31 @@ TO ADD :-
 3. enhancements
 
 2. Strucutre  
-axi4lite-slave/  
-│── src/              # RTL source files (Verilog/VHDL)  
-│   ├── axi_slave.vhd  
-│   ├── axi_write_channel.vhd  
-│   └── ...  
-│  
-│── tb/               # Testbenches  
-│   ├── tb_axi_slave.vhd  
-│   └── ...  
-│  
-│── sim/              # Simulation scripts (ModelSim/Vivado/Verilator run.do, etc.)  
-│  
-│── docs/             # Diagrams, notes, AXI protocol reference  
-│  
-│── Makefile          # For running simulations (optional, later we’ll add)  
-│── README.md         # Project overview  
-│── .gitignore  
+
+project_root/
+│
+├── rtl/             # All synthesizable RTL (design IPs, top, etc.)
+│   ├── channels/    # AXI modules
+│   ├── memory/      # FIFOs, queues
+│   └── top/         # Top-level
+│
+├── tb/              # Testbench source code (human-written, tracked)
+│   ├── axi_tb.vhd
+│   ├── fifo_tb.sv
+│   └── common/      # e.g., BFMs, verification utilities
+│
+├── sim/             # Tool setup, scripts, configs (tracked)
+│   ├── modelsim/    # .do files, run scripts
+│   ├── verilator/   # C++ harnesses, Makefiles (To Add)
+│   └── logs/        # log directory (empty in git, ignored on use)
+│
+├── build/           # Auto-generated garbage (ignored in git)
+│   ├── work/        # ModelSim/Questa library
+│   ├── waves/       # wave databases
+│   └── dump/        # .vcd/.fst outputs
+│
+├── synth/           # Synthesis scripts (Tcl, constraints)
+│
+├── doc/             # Specs, diagrams, markdown
+│
+└── .gitignore
