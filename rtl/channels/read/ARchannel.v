@@ -2,16 +2,17 @@ module AR #(
 parameter ADDR_WIDTH = 5  
 )(
     input  wire                 clk       ,         //clock
-    input  wire                 resetn    ,         //reset - logic activated when low - active low 
+    input  wire                 resetn    ,         //reset  - logic activated when low - active low 
     
-    input  wire                 ARVALID   ,         //flag   - indicates master wants to send      |
-    input  wire[ADDR_WIDTH-1:0] ARADDR    ,         //input  - data from master to slave           |---> handshake
-    output wire                 ARREADY   ,         //flag   - tells master ready to receive       | 
+    input  wire                 ARVALID   ,         //input  - flag ready to send            |
+    input  wire[ADDR_WIDTH-1:0] ARADDR    ,         //input  - data from master to slave     |---> handshake
+    output wire                 ARREADY   ,         //output - flag master, ready to receive | 
      
-    input  wire                 RRESPREADY,         //flag   - feedback status of memory      
-    input  wire[1:0]            RRESP     ,         //input  - feedback input from memory
+    input  wire                 RRESPREADY,         //input  - flag feedback ready       
+    input  wire[1:0]            RRESP     ,         //input  - receives feedback from memory
      
-    output wire[ADDR_WIDTH-1:0] AROUT               //output - actual address to memory
+    output wire[ADDR_WIDTH-1:0] REN       ,         //output - flag memory, sending read address
+    output wire[ADDR_WIDTH-1:0] ARADDROUT           //output - sends address to memory
 );
 
 //FINITE STATE MACHINE - FSM
@@ -21,11 +22,12 @@ parameter DONE = 2'b10 ;
 reg[1:0] currentState,nextState ; 
 
 //INTERNAL SIGNALS AND FLAGS
-reg                 arreadyReg = 0 ;        //drive - wire connectivity from inside always (drive ARREADY)
-reg                 addrReady  = 0 ;        //drive - wire connectivity from inside always (drive ARREADY)
-reg[ADDR_WIDTH-1:0] araddrReg  = 0 ;        //reg   - stores address from master then assign to AROUT
+reg[ADDR_WIDTH-1:0] araddrReg  = 0 ;        //drive  - ARADDROUT (temp storage of address    )
+reg                 renReg     = 0 ;        //drive  - REN       (flags enable               )
+reg                 arreadyReg = 0 ;        //drive  - ARREADY   (indicate ready for command )
+reg                 addrReady  = 0 ;        //signal - Internal  (flags address ready to send)
 
-// CURRENT STATE UPDATE                     //updates actual state at clock
+//Sequential - State Register
 always @(posedge clk or negedge resetn) begin                 
     if(!resetn) begin
         currentState <= IDLE ;
@@ -34,8 +36,8 @@ always @(posedge clk or negedge resetn) begin
     end
 end
 
-// NEXT STATE LOGIC                         //updates the next state when ever situation 
-always @(*) begin                           //allows and handling of errors
+//Combinational - Next State Logic
+always @(*) begin
     nextState = currentState ;
     arreadyReg = 0           ;
     case (currentState)
@@ -67,17 +69,20 @@ always @(*) begin                           //allows and handling of errors
     endcase
 end
 
-//CURRENT STATE LOGIC                               //sequential logic to take place at clock
-always @(posedge clk or negedge resetn) begin          //intervals driven by current state.
+//Sequential - Output Logic
+always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
         arreadyReg <= 0 ;                                                 
+        renReg     <= 0 ;                                                 
         araddrReg  <= 0 ;
         addrReady  <= 0 ;
     end else begin
+        renReg <= 0 ;
         case (currentState)
             READ: begin
                 if (!addrReady) begin
                     araddrReg <= ARADDR ;
+                    renReg <= 1         ;
                     addrReady <= 1      ;
                 end 
             end
@@ -88,8 +93,10 @@ always @(posedge clk or negedge resetn) begin          //intervals driven by cur
     end
 end
 
+//Output Drivers
 assign ARREADY   = arreadyReg ;                     //drive - used for Handshake with master  
-assign AROUT     = araddrReg  ;                     //drive - send out address to memory
+assign ARADDROUT = araddrReg  ;                     //drive - send out address to memory
+assign REN       = renReg     ;                     //drive - flags address is valid
 
 endmodule
 

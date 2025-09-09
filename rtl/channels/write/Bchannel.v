@@ -3,13 +3,13 @@ module B #(
     input  wire                 clk        ,         //clock
     input  wire                 resetn     ,         //resetn - logic activated when low - active low 
      
-    output wire                 BVALID     ,         //flag   - tells master ready to send     |
-    output wire[1:0]            BRESP      ,         //output - data from slave to master      |---> handshake
-    output wire                 BRESPREADY ,         //output - data from slave to master      |---> handshake
-    input  wire                 BREADY     ,         //flag   - tells slave ready to receive   | 
+    output wire                 BVALID     ,         //output - flag master, ready to send |
+    output wire[1:0]            BRESP      ,         //output - send Feedback              |---> handshake
+    output wire                 BRESPREADY ,         //output - flag sending feedback      |---> handshake
+    input  wire                 BREADY     ,         //input  - flag ready to receive      | 
       
-    input  wire                 WRESPREADY ,         //flag   - tells when feedback comes      
-    input  wire[1:0]            WRESP                //flag   - tells when feedback comes      
+    input  wire                 WRESPREADY ,         //input  - flags when feedback comes      
+    input  wire[1:0]            WRESP                //input  - receive feedback
 );
 
 //FINITE STATE MACHINE - FSM
@@ -19,26 +19,25 @@ parameter DONE = 2'b10 ;
 reg[1:0] currentState,nextState ;
 
 //OUTPUT SIGNALS AND FLAGS
-reg      bvalidReg     = 0 ;                    //drive - indicate slave status to send 
-reg[1:0] brespReg      = 0 ;                    //drive - feedback output driver from inside always  (drive BRESP)
-reg      brespreadyReg = 0 ;                    //drive - feedback ready output driver from inside always (drive WREADY)
+reg[1:0] brespReg      = 0 ;                    //drive - BRESP      (temp storage feedback     )
+reg      bvalidReg     = 0 ;                    //drive - BVALID     (flags master ready to send)
+reg      brespreadyReg = 0 ;                    //drive - BRESPREADY (flags slave ready to send )
 
 //INTERNAL STORAGE AND SIGNALS  
-reg      wrespreadyReg = 0 ;                    //flag - collect feedback response status from memory
-reg[1:0] wrespReg      = 0 ;                    //reg  - collect feedback response from memory
+reg[1:0] wrespReg      = 0 ;                    //input - WRESP      (temp storage of feedback from memory )
+reg      wrespreadyReg = 0 ;                    //input - WRESPREADY (flags when feedback comes from memory)
 
-//-----------------LOGIC-----------------------------------------------------------------//
-// CURRENT STATE UPDATE                         //updates actual state at clock
+//Sequential - State Register
 always @(posedge clk or negedge resetn) begin                 
     if(!resetn) begin
         currentState <= IDLE ;
     end else begin
-        currentState <= nextState ;             //clean division into 3 blocks, 1 updates states, the other 
-    end                                         //decides states, the third performs functions inside that states
+        currentState <= nextState ;
+    end
 end
 
-// NEXT STATE LOGIC                             //updates the next state when ever situation 
-always @(*) begin                               //allows and handling of errors
+//Combinational - Next State Logic
+always @(*) begin
     nextState = currentState ;
     bvalidReg = 0            ;
     case (currentState)
@@ -53,12 +52,12 @@ always @(*) begin                               //allows and handling of errors
                 nextState = IDLE ;                                   
             end
         end
-        default: nextState = IDLE ;             //default fallback
+        default: nextState = IDLE ;
     endcase
 end
 
-//CURRENT STATE LOGIC                           //sequential logic to take place at clock
-always @(posedge clk or negedge resetn) begin                     //intervals driven by current state.
+//Sequential - Output Logic
+always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
         bvalidReg     <= 0 ;
         brespReg      <= 0 ;
@@ -87,21 +86,9 @@ always @(posedge clk or negedge resetn) begin                     //intervals dr
     end
 end
 
+//Output Drivers
 assign BRESP      = brespReg       ;                  //drive - used for Handshake with master  
 assign BRESPREADY = brespreadyReg  ;                  //drive - send out address to memory
 assign BVALID     = bvalidReg      ;                  //drive - send out strobe to memory
 
 endmodule
-
-/*
----------------FEATURES---------------------------------
-
-
-MEMORY INTEFCE - 
-    input  wire                  WEN    ,
-    input  wire[ADDR_WIDTH-1:0]  AWADDR ,
-    input  wire[STRB_WIDTH-1:0]  WSTRB  ,
-    input  wire[DATA_WIDTH-1:0]  WDATA  ,
-    output wire[1:0]             WRESP  ,       (used here) 
-    output wire                  WDONE  ,       (used here)
-*/

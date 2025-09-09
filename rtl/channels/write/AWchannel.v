@@ -2,19 +2,19 @@ module AW #(
 parameter ADDR_WIDTH = 5  
 )(
     input  wire                 clk       ,         //clock
-    input  wire                 resetn    ,         //reset - logic activated when low - active low 
+    input  wire                 resetn    ,         //reset  - logic activated when low - active low 
     
-    input  wire                 AWVALID   ,         //flag   - tells input ready to come      |
+    input  wire                 AWVALID   ,         //input  - flag input ready               |
     input  wire[ADDR_WIDTH-1:0] AWADDR    ,         //input  - data from master to slave      |---> handshake
-    output wire                 AWREADY   ,         //flag   - tells input ready to receive   | 
+    output wire                 AWREADY   ,         //output - flag master, ready to receive  | 
      
-    input  wire                 BRESPREADY,         //flag   - tells when feedback comes      
-    input  wire[1:0]            BRESP     ,         //input  - data write feedback from memory
+    input  wire                 BRESPREADY,         //input  - flag tells when feedback valid      
+    input  wire[1:0]            BRESP     ,         //input  - feedback from Bchannel
      
-    input  wire                 DATAREADY ,         //flag   - tells data to write is ready
-    output wire                 ADDRREADY ,         //flag   - tells address to write on is ready
+    input  wire                 DATAREADY ,         //input  - flag Wchannel is ready
+    output wire                 ADDRREADY ,         //output - flag Slave, AWchannel is ready 
 
-    output wire[ADDR_WIDTH-1:0] AWOUT               //output - actual address to memory
+    output wire[ADDR_WIDTH-1:0] AWADDROUT               //output - send address to memory
 );
 
 //FINITE STATE MACHINE - FSM
@@ -24,23 +24,23 @@ parameter DONE  = 2'b10 ;
 reg[1:0] currentState,nextState ; 
 
 //INTERNAL SIGNALS AND FLAGS
-reg                 addrReady  = 0 ;        //flag  - indicate address is ready to begin write 
-reg                 awreadyReg = 0 ;        //drive - wire connectivity from inside always (drive AWREADY)
-reg[ADDR_WIDTH-1:0] awaddrReg  = 0 ;        //reg   - stores address from master then assign to output
+reg[ADDR_WIDTH-1:0] awaddrReg  = 0 ;        //drive - AWADDROUT     (temp storage of address   )
+reg                 addrReady  = 0 ;        //drive - ADDRREADY (indicates AW channel ready)
+reg                 awreadyReg = 0 ;        //drive - AWREADY   (indicate ready for write  )
 
-// CURRENT STATE UPDATE                     //updates actual state at clock
-always @(posedge clk) begin                 
+//Sequential - State Register
+always @(posedge clk or negedge resetn) begin                 
     if(!resetn) begin
-        awaddrReg    <= 0    ;
         currentState <= IDLE ;
+        awaddrReg    <= 0    ;
         addrReady    <= 0    ;
     end else begin
         currentState <= nextState ;
     end
 end
 
-// NEXT STATE LOGIC                         //updates the next state when ever situation 
-always @(*) begin                           //allows and handling of errors
+//Combinational - Next State Logic
+always @(*) begin                          
     nextState = currentState ;
     awreadyReg = 0           ;
     case (currentState)
@@ -72,8 +72,8 @@ always @(*) begin                           //allows and handling of errors
     endcase
 end
 
-//CURRENT STATE LOGIC                               //sequential logic to take place at clock
-always @(posedge clk) begin                         //intervals driven by current state.
+//Sequential - Output Logic
+always @(posedge clk) begin
     case (currentState)
         WRITE: begin
             if (!addrReady) begin
@@ -87,21 +87,9 @@ always @(posedge clk) begin                         //intervals driven by curren
     endcase
 end
 
+//Output Drivers
 assign AWREADY   = awreadyReg ;                     //drive - used for Handshake with master  
-assign AWOUT     = awaddrReg  ;                     //drive - send out address to memory
+assign AWADDROUT     = awaddrReg  ;                     //drive - send out address to memory
 assign ADDRREADY = addrReady  ;                     //drive - indicate address is ready to write
 
 endmodule
-
-/*
----------------FEATURES---------------------------------
-    - directly connected with memory and master
-    - uses 2 sequential blocks and 1 combinatinoal block
-    - 
-
-IMPLEMENTED USING  3 SEPARATE LOGIC BLOCKS  TO KEEP THINGS 
-CLEAN, MANAGEABLE AND STRICTLY DISTINGUISH BLOCK FUNCTIONS
-The blocks  being 2  sequential and 1  combinational,  the 
-sequential blocks update according to the clocks and performs
-the actual logic at approprtiate times like when writing
-*/
