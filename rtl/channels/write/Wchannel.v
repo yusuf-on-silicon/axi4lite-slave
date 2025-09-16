@@ -1,4 +1,4 @@
-module W #(
+module Wchannel #(
 parameter DATA_WIDTH = 32 ,
 parameter STRB_WIDTH = 4  
 )(
@@ -17,7 +17,7 @@ parameter STRB_WIDTH = 4
     output wire                 DATAREADY ,         //output - flag Slave, Wchannel is ready
 
     output wire[DATA_WIDTH-1:0] WDATAOUT  ,         //output - send data to memory
-    output wire[DATA_WIDTH-1:0] WSTRBOUT            //output - send data strobe to memory
+    output wire[STRB_WIDTH-1:0] WSTRBOUT            //output - send data strobe to memory
 );
 
 //FINITE STATE MACHINE - FSM
@@ -33,13 +33,9 @@ reg                 dataReady = 0 ;         //drive - DATAREADY (indicate W chan
 reg                 wreadyReg = 0 ;         //drive - WREADY    (indicate ready for write)
 
 //Sequential - State Register
-always @(posedge clk) begin                 
+always @(posedge clk or negedge resetn) begin                 
     if(!resetn) begin
         currentState <= IDLE ;
-        wdataReg     <= 0    ;
-        wstrbReg     <= 0    ;
-        dataReady    <= 0    ;
-        wreadyReg    <= 0    ;
     end else begin
         currentState <= nextState ;
     end
@@ -48,10 +44,8 @@ end
 //Combinational - Next State Logic
 always @(*) begin
     nextState = currentState ;
-    wreadyReg = 0            ;
     case (currentState)
         IDLE: begin
-            wreadyReg = 1;
             if (WVALID && wreadyReg) begin
                 nextState = WRITE  ;
             end
@@ -79,15 +73,28 @@ always @(*) begin
 end
 
 //Sequential - Output Logic
-always @(posedge clk) begin
-    dataReady <= 0 ;                                                 
-    case (currentState)
-        WRITE: begin
-            wdataReg  <= WDATA ;
-            wstrbReg  <= WSTRB ;
-            dataReady <= 1     ;
-        end
-    endcase
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+        wdataReg     <= 0    ;
+        wstrbReg     <= 0    ;
+        dataReady    <= 0    ;
+        wreadyReg    <= 0    ;
+    end else begin                                                
+        case (currentState)
+            IDLE: begin
+                wreadyReg <= 1 ;
+            end
+            WRITE: begin
+                wreadyReg <= 0     ;
+                wdataReg  <= WDATA ;
+                wstrbReg  <= WSTRB ;
+                dataReady <= 1     ;
+            end
+            DONE: begin
+                dataReady <= 0     ;
+            end
+        endcase
+    end
 end
 
 //Output Drivers

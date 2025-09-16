@@ -1,8 +1,8 @@
 module memory #(
-    parameter DATA_WIDTH = 32                 ,
-    parameter DATA_DEPTH = 64                 ,
-    parameter ADDR_WIDTH = $clog2(DATA_DEPTH) ,
-    parameter STRB_WIDTH = DATA_WIDTH/8
+    parameter DATA_WIDTH = 32 ,
+    parameter DATA_DEPTH = 64 ,
+    parameter ADDR_WIDTH = 5  ,
+    parameter STRB_WIDTH = 4
 ) (
     input  wire                  clk    ,
     input  wire                  resetn ,
@@ -46,7 +46,6 @@ initial begin
     end    
 end
 
-//----------------------------LOGIC-------------------------------------------------------//
 
 //------WRITE---------------//
 // Output assignment

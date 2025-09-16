@@ -2,8 +2,11 @@
 Implementation of AXI4-Lite Slave of the AMBA family. Model capable of scaling and implementing inside other rtl program as sub modules
 TO ADD :-
 1. summary of what it is
-2. sttructure
+2. structure
 3. enhancements
+
+To Run:- point to project path (cd "C:/Users/Yusuf/Documents/Production/VLSI/Projects/AXI4-Lite")
+         then run (do "sim/modelsim/main.do")
 
 2. Strucutre  
 

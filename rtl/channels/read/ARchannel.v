@@ -1,4 +1,4 @@
-module AR #(
+module ARchannel #(
 parameter ADDR_WIDTH = 5  
 )(
     input  wire                 clk       ,         //clock
@@ -11,7 +11,7 @@ parameter ADDR_WIDTH = 5
     input  wire                 RRESPREADY,         //input  - flag feedback ready       
     input  wire[1:0]            RRESP     ,         //input  - receives feedback from memory
      
-    output wire[ADDR_WIDTH-1:0] REN       ,         //output - flag memory, sending read address
+    output wire                 REN       ,         //output - flag memory, sending read address
     output wire[ADDR_WIDTH-1:0] ARADDROUT           //output - sends address to memory
 );
 
@@ -19,7 +19,7 @@ parameter ADDR_WIDTH = 5
 parameter IDLE = 2'b00 ;
 parameter READ = 2'b01 ;
 parameter DONE = 2'b10 ;
-reg[1:0] currentState,nextState ; 
+reg[1:0]  currentState,nextState ; 
 
 //INTERNAL SIGNALS AND FLAGS
 reg[ADDR_WIDTH-1:0] araddrReg  = 0 ;        //drive  - ARADDROUT (temp storage of address    )
@@ -39,10 +39,8 @@ end
 //Combinational - Next State Logic
 always @(*) begin
     nextState = currentState ;
-    arreadyReg = 0           ;
     case (currentState)
         IDLE: begin
-            arreadyReg = 1 ;
             if (ARVALID) begin
                 nextState = READ ;
             end
@@ -77,9 +75,12 @@ always @(posedge clk or negedge resetn) begin
         araddrReg  <= 0 ;
         addrReady  <= 0 ;
     end else begin
-        renReg <= 0 ;
         case (currentState)
+            IDLE: begin
+                arreadyReg <= 1 ;
+            end
             READ: begin
+                arreadyReg <= 0 ;
                 if (!addrReady) begin
                     araddrReg <= ARADDR ;
                     renReg <= 1         ;
@@ -87,6 +88,7 @@ always @(posedge clk or negedge resetn) begin
                 end 
             end
             DONE: begin
+                renReg <= 0 ;
                 addrReady <= 0;
             end
         endcase

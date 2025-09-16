@@ -1,13 +1,12 @@
-module write #(
+module read #(
 parameter DATA_WIDTH = 32 ,
 parameter DATA_DEPTH = 64 ,
 parameter ADDR_WIDTH = 5  ,
-parameter STRB_WIDTH = 4  ,
 parameter RESP_WIDTH = 2  
 )
 (
     input  wire                 clk        ,     //Basic Inputs
-    input  wire                 reset      , 
+    input  wire                 resetn     , 
        
     input  wire                 ARVALID    ,     //1. AR channel   - capture write address
     input  wire[ADDR_WIDTH-1:0] ARADDR     ,   
@@ -26,28 +25,29 @@ parameter RESP_WIDTH = 2
     input  wire                 RREADY     
 );
 
+wire rrespready ;
 ARchannel ARentity (
-    .clk(clk),
-    .resetn(resetn),    
-    .ARVALID(ARVALID),
-    .ARADDR(ARADDR),
-    .ARREADY(ARREADY),
-    .RRESPREADY(RRESPREADY),
-    .RRESP(RRESP),     
-    .REN(REN),
-    .ARADDROUT(ARADDROUT)
+    .clk        (clk),        
+    .resetn     (resetn),            
+    .ARVALID    (ARVALID),            
+    .ARADDR     (ARADDR),        
+    .ARREADY    (ARREADY),            
+    .RRESPREADY (rrespready),            
+    .RRESP      (RRESP),             
+    .REN        (REN),        
+    .ARADDROUT  (ARADDROUT)
 );
 
 Rchannel Rentity (
-    .clk(clk),
-    .resetn(resetn),
-    .MREADY(MREADY),
-    .MDATA(MDATA),
-    .MRESP(MRESP),
-    .RVALID(RVALID),
-    .RDATA(RDATA),
-    .RRESP(RRESP),
-    .RRESPREADY(RRESPREADY),
-    .RREADY(RREADY)
+    .clk        (clk)        ,
+    .resetn     (resetn)     ,    
+    .MREADY     (MREADY)     ,    
+    .MDATA      (MDATA)      ,
+    .MRESP      (MRESP)      ,
+    .RVALID     (RVALID)     ,    
+    .RDATA      (RDATA)      ,
+    .RRESP      (RRESP)      ,
+    .RRESPREADY (rrespready) ,        
+    .RREADY     (RREADY)        
 );
 endmodule

@@ -1,4 +1,4 @@
-module B #(
+module Bchannel #(
 )(
     input  wire                 clk        ,         //clock
     input  wire                 resetn     ,         //resetn - logic activated when low - active low 

@@ -1,4 +1,4 @@
-module R #(
+module Rchannel #(
 parameter DATA_WIDTH = 32 
 )(
     input  wire                 clk        ,     //clock
@@ -34,12 +34,6 @@ reg                 rrespready = 0 ;
 always @(posedge clk or negedge resetn) begin                 
     if(!resetn) begin
         currentState <= IDLE ;
-        rvalidReg    <= 0    ;
-        mdataReg     <= 0    ;
-        mrespReg     <= 0    ;
-        rdataReg     <= 0    ;
-        rrespReg     <= 0    ;
-        readDone     <= 0    ;
     end else begin
         currentState <= nextState ;
     end
@@ -48,7 +42,6 @@ end
 // NEXT STATE LOGIC                         //updates the next state when ever situation 
 always @(*) begin                           //allows and handling of errors
     nextState = currentState ;
-    rvalidReg = 0;
     case (currentState)
         IDLE: begin
             if (MREADY) begin
@@ -56,7 +49,6 @@ always @(*) begin                           //allows and handling of errors
             end
         end
         READ: begin
-            rvalidReg = 1;
             if (readDone && RREADY) begin
                 nextState = DONE ;
             end
@@ -72,25 +64,38 @@ end
 
 //CURRENT STATE LOGIC                           //sequential logic to take place at clock
 always @(posedge clk or negedge resetn) begin   //intervals driven by current state.                                              
-    rrespready = 0 ;
-    case (currentState)
-    READ: begin
-        if (!readDone) begin
-            mrespReg <= MRESP ;
-            mdataReg <= MDATA ;
-            readDone <= 1     ;
-        end
-    end
-    DONE: begin
-        readDone   <= 0 ;    
-        rrespready <= 1 ;
-        rrespReg   <= mrespReg ;
-        if (mrespReg == 0) begin
-            rdataReg <= mdataReg ;
-        end
-    end
-    default: nextState <= IDLE ;
-    endcase
+    if (!resetn) begin
+        rrespready <= 0 ;
+        rvalidReg  <= 0 ;
+        mdataReg   <= 0 ;
+        mrespReg   <= 0 ;
+        rdataReg   <= 0 ;
+        rrespReg   <= 0 ;
+        readDone   <= 0 ;
+    end else begin
+        case (currentState)
+            IDLE: begin
+                rrespready <= 0 ;
+            end
+            READ: begin
+                if (!readDone) begin
+                    rvalidReg <= 1     ;
+                    mrespReg  <= MRESP ;
+                    mdataReg  <= MDATA ;
+                    readDone  <= 1     ;
+                end
+            end
+            DONE: begin
+                rvalidReg  <= 0 ;
+                readDone   <= 0 ;    
+                rrespready <= 1 ;
+                rrespReg   <= mrespReg ;
+                if (mrespReg == 0) begin
+                    rdataReg <= mdataReg ;
+                end
+            end
+        endcase
+    end 
 end
 
 assign RRESPREADY = rrespready  ;

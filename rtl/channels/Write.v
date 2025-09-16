@@ -7,7 +7,7 @@ parameter RESP_WIDTH = 2
 )
 (
   input  wire                 clk        ,     //Global 
-  input  wire                 reset      , 
+  input  wire                 resetn     , 
      
   input  wire                 AWVALID    ,     //1 AW channel - capture write address
   input  wire[ADDR_WIDTH-1:0] AWADDR     ,   
@@ -31,16 +31,17 @@ parameter RESP_WIDTH = 2
   input  wire                 BREADY      
 );
 
-wire dataReady;
-wire addrReady;
+wire dataReady  ;
+wire addrReady  ;
+wire brespready ;
 
 AWchannel AWentity (
     .clk(clk),                      // IN  : From   Global             |  <-------   Glo 
-    .reset(reset),                  // IN  : From   Global             |  <-------   Glo
+    .resetn(resetn),                // IN  : From   Global             |  <-------   Glo
     .AWVALID(AWVALID),              // IN  : From   Master             |  <-------   Mas
     .AWADDR(AWADDR),                // IN  : From   Master             |  <-------   Mas
     .AWREADY(AWREADY),              // OUT : To     Master             |    -------> Mas
-    .BRESPREADY(BRESPREADY),        // IN  : From   Slave    Bchannel  |  <-------   SB
+    .BRESPREADY(brespready),        // IN  : From   Slave    Bchannel  |  <-------   SB
     .BRESP(BRESP),                  // IN  : From   Slave    Bchannel  |  <-------   SB
     .DATAREADY(dataReady),          // IN  : From   Slave    Wchannel  |  <-------   SW
     .ADDRREADY(addrReady),          // OUT : To     Slave    Wchannel  |    -------> SW
@@ -49,12 +50,12 @@ AWchannel AWentity (
 
 Wchannel Wentity (
     .clk(clk),                      // IN  : From   Global             |  <-------   Glo
-    .reset(reset),                  // IN  : From   Global             |  <-------   Glo
+    .resetn(resetn),                // IN  : From   Global             |  <-------   Glo
     .WVALID(WVALID),                // IN  : From   Master             |  <-------   Mas
     .WDATA(WDATA),                  // IN  : From   Master             |  <-------   Mas
     .WSTRB(WSTRB),                  // IN  : From   Master             |  <-------   Mas
     .WREADY(WREADY),                // OUT : To     Master             |    -------> Mas
-    .BRESPREADY(BRESPREADY),        // IN  : From   Slave    Bchannel  |  <-------   SB
+    .BRESPREADY(brespready),        // IN  : From   Slave    Bchannel  |  <-------   SB
     .BRESP(BRESP),                  // IN  : From   Slave    Bchannel  |  <-------   SB
     .DATAREADY(dataReady),          // OUT : To     Slave    AWchannel |    -------> SAW
     .ADDRREADY(addrReady),          // IN  : From   Slave    AWchannel |  <-------   SAW
@@ -64,11 +65,11 @@ Wchannel Wentity (
 
 Bchannel Bentity (
     .clk(clk),                      // IN  : From   Global             |  <-------   Glo
-    .reset(reset),                  // IN  : From   Global             |  <-------   Glo
+    .resetn(resetn),                // IN  : From   Global             |  <-------   Glo
     .BVALID(BVALID),                // OUT : To     Master             |  <-------   Mas
     .BRESP(BRESP),                  // OUT : To     Many               |  <-------   Mas,SAW,SW
     .BREADY(BREADY),                // IN  : From   Master             |  <-------   Mas
-    .BRESPREADY(BRESPREADY),        // OUT : To     Slave    AW,W      |    -------> SAW,SW
+    .BRESPREADY(brespready),        // OUT : To     Slave    AW,W      |    -------> SAW,SW
     .WRESP(WRESP),                  // IN  : From   Memory             |  <-------   Mem
     .WRESPREADY(WRESPREADY)         // IN  : From   Memory             |  <-------   Mem
 );
