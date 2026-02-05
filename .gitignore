@@ -23,3 +23,56 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+
+
+
+# =========================
+# Global generated folders
+# =========================
+build/
+results/
+temp/
+
+# =========================
+# Simulation safety net
+# (sim/ itself is tracked)
+# =========================
+sim/work/
+sim/transcript
+sim/vsim.wlf
+
+# =========================
+# Compilation Junk
+# =========================
+*.bak
+*.bak
+*~
+*.tmp
+
+# =========================
+# Synthesis working area
+# =========================
+syn/build/
+
+# =========================
+# Synthesis raw / noisy outputs
+# (curated reports can be added explicitly)
+# =========================
+syn/results/*.log
+syn/results/*.jou
+syn/results/*.wdb
+syn/results/*.pb
+syn/results/*.xml
+
+# =========================
+# Personal notes
+# =========================
+docs/EnhancementGuide.txt
+docs/*.docx
+
+# =========================
+# Backup Files
+# =========================
+rtl/main - backup.v
+tb/tb_main - backup.v
+sim/run - backup.do

@@ -13,9 +13,8 @@ module Bchannel #(
 );
 
 //FINITE STATE MACHINE - FSM
-parameter IDLE = 2'b00 ;
-parameter SEND = 2'b01 ;
-parameter DONE = 2'b10 ;
+parameter IDLE = 1'b0 ;
+parameter SEND = 1'b1 ;
 reg[1:0] currentState,nextState ;
 
 //OUTPUT SIGNALS AND FLAGS
@@ -39,7 +38,6 @@ end
 //Combinational - Next State Logic
 always @(*) begin
     nextState = currentState ;
-    bvalidReg = 0            ;
     case (currentState)
         IDLE: begin
             if (wrespreadyReg) begin
@@ -47,7 +45,6 @@ always @(*) begin
             end
         end
         SEND: begin
-            bvalidReg = 1 ;
             if (brespreadyReg) begin
                 nextState = IDLE ;                                   
             end
@@ -65,23 +62,24 @@ always @(posedge clk or negedge resetn) begin
         wrespreadyReg <= 0 ;
         wrespReg      <= 0 ;
     end else begin
-        brespreadyReg <= 0 ;
-        brespReg      <= 0 ;
-        wrespreadyReg <= 0 ;
         case (currentState)
             IDLE: begin
+                brespReg      <= 0 ;
+                brespreadyReg <= 0 ;
+                bvalidReg     <= 0 ;
                 if (WRESPREADY) begin
-                    wrespreadyReg <= 1 ;
-                    wrespReg  <= WRESP ;
+                    wrespreadyReg <= 1     ;
+                    wrespReg      <= WRESP ;
                 end
             end
             SEND: begin
+                wrespreadyReg <= 0 ;
+                bvalidReg     <= 1 ;
                 if (BREADY && bvalidReg) begin
                     brespreadyReg <= 1   ;
                     brespReg <= wrespReg ;
                 end
             end
-            default: nextState <= IDLE;
         endcase
     end
 end

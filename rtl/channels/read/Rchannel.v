@@ -76,18 +76,18 @@ always @(posedge clk or negedge resetn) begin   //intervals driven by current st
         case (currentState)
             IDLE: begin
                 rrespready <= 0 ;
+                rvalidReg  <= 0 ;
             end
             READ: begin
                 if (!readDone) begin
-                    rvalidReg <= 1     ;
                     mrespReg  <= MRESP ;
                     mdataReg  <= MDATA ;
                     readDone  <= 1     ;
                 end
             end
             DONE: begin
-                rvalidReg  <= 0 ;
                 readDone   <= 0 ;    
+                rvalidReg  <= 1 ;
                 rrespready <= 1 ;
                 rrespReg   <= mrespReg ;
                 if (mrespReg == 0) begin

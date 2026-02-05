@@ -6,10 +6,36 @@ module mainTB#(
     parameter STRB_WIDTH = 4    
 )();
 
-//Parameters
-parameter CLK_PERIOD   = 10   ;
-parameter RESET_CYCLES = 5    ;
+//============================================================
+//      Parameters - 
+//============================================================
+parameter CLK_PERIOD   = 10 ;
+parameter RESET_CYCLES = 5  ;
+integer SEED         = 5 ;
+integer WRITE_COUNT  = 0 ; 
+integer READ_COUNT   = 0 ;
 
+//============================================================
+//      Signals
+//============================================================
+
+//Signal Task Write
+integer              writeCounter = 0 ;
+integer              writeDelay   = 0 ;
+reg [ADDR_WIDTH-1:0] writeAddr        ;
+reg [DATA_WIDTH-1:0] writeData        ;
+reg [STRB_WIDTH-1:0] writeStrobe      ;
+reg                  aw_done      = 0 ;
+reg                  w_done       = 0 ;
+
+//Signal Task Read
+integer              readCounter = 0 ;
+integer              readDelay   = 0 ;
+reg [ADDR_WIDTH-1:0] readAddr        ;      
+reg [DATA_WIDTH-1:0] readData        ; 
+reg                  ar_done     = 0 ;
+
+//Signals DUT
 reg                  clk      ;
 reg                  resetn   ;
 
@@ -35,11 +61,9 @@ wire[DATA_WIDTH-1:0] rdata    ;
 wire[1:0]            rresp    ;
 wire                 rvalid   ;
 
-reg [DATA_WIDTH-1:0] readData ; //internal to testbench
-reg aw_done = 0               ;
-reg w_done  = 0               ;
-reg ar_done = 0               ;
-
+//============================================================
+//      DUT
+//============================================================
 main DUT(
     .clk     (clk)      ,       //input     
     .resetn  (resetn)   ,       //input     
@@ -67,19 +91,10 @@ main DUT(
     .RVALID  (rvalid)           //output   
 );
 
-//Clock generation (parametrization)
-initial clk = 0                   ;
-always #(CLK_PERIOD/2) clk = ~clk ;
-
-//Reset (Sycnhronised)
-initial begin
-    resetn = 0 ;
-    repeat (RESET_CYCLES) @(posedge clk) ;
-    resetn = 1 ;
-    $display("[%0t] resetn deasserted", $time) ;
-end
-
-//Tasks (modular stimulus)
+//============================================================
+//      Tasks
+//============================================================
+//Task Write
 task axi_write(input [ADDR_WIDTH-1:0] addr, input [DATA_WIDTH-1:0] data, input [STRB_WIDTH-1:0] strb);    
     begin
     fork
@@ -115,6 +130,7 @@ task axi_write(input [ADDR_WIDTH-1:0] addr, input [DATA_WIDTH-1:0] data, input [
     end
 endtask
 
+//Task Read
 task axi_read(input [ADDR_WIDTH-1:0] addr, output [DATA_WIDTH-1:0] dataOut);
     fork
         begin //address
@@ -133,47 +149,75 @@ task axi_read(input [ADDR_WIDTH-1:0] addr, output [DATA_WIDTH-1:0] dataOut);
             @(posedge clk)  ;
             while (!rvalid) @(posedge clk) ;
             dataOut = rdata ;
+            @(posedge clk)
             rready = 0      ;
         end
     join
 endtask
 
+//============================================================
+//      Logic
+//============================================================
+//Logic Clock
+initial clk = 0                   ;
+always #(CLK_PERIOD/2) clk = ~clk ;
 
+//Logic Reset 
 initial begin
-//initials
-awvalid = 0 ; awaddr = 0 ;
-wvalid  = 0 ; wdata  = 0 ; wstrb = 0 ;
+    resetn = 0 ;
+    repeat (RESET_CYCLES) @(posedge clk) ;
+    resetn = 1 ;
+    $display("[%0t] resetn deasserted", $time) ;
+end
+
+//Logic Behaviour
+initial begin
+awvalid = 0 ;       //Asign starting values at start
+awaddr  = 0 ;
+wvalid  = 0 ; 
+wdata   = 0 ; 
+wstrb   = 0 ;
 bready  = 0 ; 
-arvalid = 0 ; araddr = 0 ; 
+aw_done = 0 ;
+w_done  = 0 ;
+
+arvalid = 0 ; 
+araddr  = 0 ; 
 rready  = 0 ; 
+ar_done = 0 ;
 
-//waiting for reset
+WRITE_COUNT = ({$random} * {$random(SEED)})%100000 ;
+READ_COUNT  = ({$random} * {$random(SEED)})%100000 ;
 
-@(posedge resetn)
+@(posedge resetn)   //waiting for reset
 @(posedge clk)
 
-//test sequence
-axi_write(5'b01011, 32'b00010010010010000001001101101100, 4'b1111) ;
-axi_write(5'b01100, 32'b00000000111111110000000011111111, 4'b1001) ;
-axi_write(5'b01101, 32'b01010101010101010101010101010101, 4'b1001) ;
-axi_write(5'b01110, 32'b00000000000000001111111111111111, 4'b1001) ;
-axi_write(5'b01111, 32'b11111111111111111111111111111111, 4'b1001) ;
-axi_write(5'b10000, 32'b10111111111111111111111111111101, 4'b1001) ;
-axi_write(5'b10001, 32'b00010010010010000001001101101100, 4'b1111) ;
-axi_write(5'b10010, 32'b00000000111111110000000011111111, 4'b1001) ;
-axi_write(5'b10011, 32'b01010101010101010101010101010101, 4'b1001) ;
-axi_write(5'b10100, 32'b00000000000000001111111111111111, 4'b1001) ;
-axi_write(5'b10101, 32'b11111111111111111111111111111111, 4'b1001) ;
-axi_write(5'b10110, 32'b10111111111111111111111111111101, 4'b1001) ;
-
-#20 ;
-axi_read(5'b01011, readData) ;
-axi_read(5'b01100, readData) ;
-axi_read(5'b01101, readData) ;
+fork
+    begin //test sequence
+        for (writeCounter = 0 ; writeCounter <= WRITE_COUNT ; writeCounter = writeCounter + 1) begin
+            writeAddr   = $unsigned(({$random} * {$random(SEED)})%32 ) ;
+            writeData   = $unsigned(({$random} * {$random(SEED)})    ) ;  
+            writeStrobe = $unsigned(({$random} * {$random(SEED)})%16 ) ;
+            writeDelay  = $unsigned(({$random} * {$random(SEED)})%500) ;
+            axi_write(writeAddr,writeData,writeStrobe) ;
+            #(writeDelay) ;
+        end
+//        axi_write(5'b01011, 32'b00010010010010000001001101101100, 4'b1111) ;
+    end
+    begin
+        for (readCounter = 0 ; readCounter <= READ_COUNT ; readCounter = readCounter + 1) begin
+            readAddr   = $unsigned(({$random} * {$random(SEED)})%32 ) ;
+            readDelay  = $unsigned(({$random} * {$random(SEED)})%500) ;
+            axi_read(readAddr, readData) ;
+            #(readDelay) ;
+        end
+//        axi_read(5'b01011, readData) ;
+    end
+join
 
 //end simulation
 #100 ;
-$stop;
+$stop(0);
 $finish;
 end
 endmodule

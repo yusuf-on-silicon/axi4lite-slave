@@ -59,9 +59,9 @@ always @(*) begin
             if (BRESPREADY) begin
                 case (BRESP) 
                       2'b00: nextState = IDLE         ;    //OKAY   - successful
-                      2'b01: nextState = WRITE        ;    //SLVERR - internal issue, re-attempt
+                      2'b01: nextState = IDLE         ;    //SLVERR - internal issue, re-attempt (ideally this stays WRITE - but since we ignore error and proceed we set it to IDLE.)
                       2'b10: nextState = IDLE         ;    //EXOKAY - used for axi4-full, irrelevant here
-                      2'b11: nextState = currentState ;    //DECERR - wrong address receieved, re-collect address
+                      2'b11: nextState = IDLE         ;    //DECERR - wrong address receieved, re-collect address
                     default: nextState = IDLE         ;    //default fallback
                 endcase
             end else begin

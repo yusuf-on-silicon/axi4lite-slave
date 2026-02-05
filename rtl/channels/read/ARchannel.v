@@ -20,7 +20,7 @@ parameter IDLE = 2'b00 ;
 parameter READ = 2'b01 ;
 parameter DONE = 2'b10 ;
 reg[1:0]  currentState,nextState ; 
-
+ 
 //INTERNAL SIGNALS AND FLAGS
 reg[ADDR_WIDTH-1:0] araddrReg  = 0 ;        //drive  - ARADDROUT (temp storage of address    )
 reg                 renReg     = 0 ;        //drive  - REN       (flags enable               )

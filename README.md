@@ -4,6 +4,7 @@ TO ADD :-
 1. summary of what it is
 2. structure
 3. enhancements
+4. to make driver, monitor, scoreboard, logs, graphs.
 
 To Run:- point to project path (cd "C:/Users/Yusuf/Documents/Production/VLSI/Projects/AXI4-Lite")
          then run (do "sim/modelsim/main.do")
@@ -37,3 +38,5 @@ project_root/
 ├── doc/             # Specs, diagrams, markdown  
 │  
 └── .gitignore  
+
+

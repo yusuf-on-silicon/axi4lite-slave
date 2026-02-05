@@ -80,6 +80,9 @@ always @(posedge clk or negedge resetn) begin
             if (WSTRB[3]) memory[AWADDR][31:24] <= WDATA[31:24];
             wdoneReg <= 1;
         end
+        else if (WEN && wrespReg!=OKAY) begin
+            wdoneReg <= 1;                      // this does not save the error values and proceeds to the next operation.
+        end
     end
 end
 
@@ -94,9 +97,9 @@ always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
         rrespReg <= DECERR;
     end else begin
-        if (REN && AWADDR <= 62) begin
+        if (REN && ARADDR <= 62) begin
             rrespReg <= OKAY ;
-        end else begin
+        end else if (REN) begin
             rrespReg <= DECERR ;
         end
     end

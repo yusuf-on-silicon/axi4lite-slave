@@ -1,9 +1,11 @@
-set PROJECT_ROOT "C:/Users/Yusuf/Documents/Production/VLSI/Projects/AXI4-Lite"
+# do ../../sim/main.do
+
+set PROJECT_ROOT "C:/Users/Yusuf/OneDrive/Documents/Production/VLSI/Projects/3.0 - AXI4-Lite Slave Peripheral"
 set SOURCE_PATH "${PROJECT_ROOT}/rtl"
-set BUILD_PATH "${PROJECT_ROOT}/build"
+set BUILD_PATH "${PROJECT_ROOT}/build/modelsim"
 set WORK_PATH "${BUILD_PATH}/work"
 
-cd "${PROJECT_ROOT}"
+# cd "${PROJECT_ROOT}"
 
 if { [catch {exec mkdir -p $BUILD_PATH } ] } {
     puts "Could not create build path. Assuming it exists."
@@ -30,7 +32,7 @@ vlog -work work "${PROJECT_ROOT}/rtl/channels/read/ARchannel.v"
 vlog -work work "${PROJECT_ROOT}/rtl/channels/read/Rchannel.v"
 vlog -work work "${PROJECT_ROOT}/tb/mainTB.v"
 
-vsim work.mainTB -wlf "$BUILD_PATH/waves/main.wlf"
+vsim work.mainTB -wlf "$BUILD_PATH/AXI4_Lite_waveform.wlf"
 
 radix binary
 
@@ -55,5 +57,9 @@ sim:/mainTB/rready   \
 sim:/mainTB/rvalid   \
 sim:/mainTB/readData \
 sim:/mainTB/ar_done
+
+add wave -position insertpoint  \
+-radix decimal sim:/mainTB/WRITE_COUNT \
+-radix decimal sim:/mainTB/READ_COUNT
 
 run -all

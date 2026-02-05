@@ -16,7 +16,7 @@ reg[dataWidth-1:0]   WDATA  ;
 reg                  REN    ;
 reg[addrWidth-1:0]   ARADDR ;
 wire[dataWidth-1:0]  RDATA  ;
-
+ 
 initial begin
     clk = 0;
     forever #5 clk = ~clk ; // 100 MHz write clock
