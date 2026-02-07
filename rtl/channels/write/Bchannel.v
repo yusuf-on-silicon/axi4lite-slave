@@ -18,7 +18,6 @@ parameter SEND = 1'b1 ;
 reg[1:0] currentState,nextState ;
 
 //OUTPUT SIGNALS AND FLAGS
-reg[1:0] brespReg      = 0 ;                    //drive - BRESP      (temp storage feedback     )
 reg      bvalidReg     = 0 ;                    //drive - BVALID     (flags master ready to send)
 reg      brespreadyReg = 0 ;                    //drive - BRESPREADY (flags slave ready to send )
 
@@ -57,14 +56,12 @@ end
 always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
         bvalidReg     <= 0 ;
-        brespReg      <= 0 ;
         brespreadyReg <= 0 ;
         wrespreadyReg <= 0 ;
         wrespReg      <= 0 ;
     end else begin
         case (currentState)
             IDLE: begin
-                brespReg      <= 0 ;
                 brespreadyReg <= 0 ;
                 bvalidReg     <= 0 ;
                 if (WRESPREADY) begin
@@ -77,7 +74,6 @@ always @(posedge clk or negedge resetn) begin
                 bvalidReg     <= 1 ;
                 if (BREADY && bvalidReg) begin
                     brespreadyReg <= 1   ;
-                    brespReg <= wrespReg ;
                 end
             end
         endcase
@@ -85,7 +81,7 @@ always @(posedge clk or negedge resetn) begin
 end
 
 //Output Drivers
-assign BRESP      = brespReg       ;                  //drive - used for Handshake with master  
+assign BRESP      = wrespReg       ;                  //drive - used for Handshake with master  
 assign BRESPREADY = brespreadyReg  ;                  //drive - send out address to memory
 assign BVALID     = bvalidReg      ;                  //drive - send out strobe to memory
 

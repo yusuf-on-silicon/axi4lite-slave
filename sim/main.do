@@ -62,4 +62,8 @@ add wave -position insertpoint  \
 -radix decimal sim:/mainTB/WRITE_COUNT \
 -radix decimal sim:/mainTB/READ_COUNT
 
+add wave -position insertpoint  \
+sim:/mainTB/DUT/memory/memory
+
+
 run -all
