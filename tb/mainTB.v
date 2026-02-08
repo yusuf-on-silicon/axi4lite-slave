@@ -3,7 +3,9 @@
 module mainTB#(
     parameter DATA_WIDTH = 32 ,
     parameter DATA_DEPTH = 64 ,
-    parameter ADDR_WIDTH = 5  ,
+    parameter ADDR_WIDTH = 6  ,
+    parameter FIFO_WIDTH = 1024  ,
+    parameter FIFO_ADDR_WIDTH = $clog2(FIFO_WIDTH) + 1  ,
     parameter STRB_WIDTH = 4    
 )();
 
@@ -159,6 +161,9 @@ endtask
 //============================================================
 //      Monitor & Scoreboard
 //============================================================
+//flipflop for queue read
+
+//
 reg [DATA_WIDTH-1:0] monitor_memory [DATA_DEPTH-1:0] ;
 reg [DATA_WIDTH-1:0] monitor_wdata ;
 reg [ADDR_WIDTH-1:0] monitor_waddr ;
@@ -192,14 +197,31 @@ always @(posedge clk) begin
         monitor_wdata_done = 0 ;
     end    
 end    
+
+//==========================================================
+reg [ADDR_WIDTH-1:0]      wr2rd_data_fifo [FIFO_WIDTH-1:0] ;
+reg [ADDR_WIDTH-1:0]      wr2rd_addr_fifo [FIFO_WIDTH-1:0] ;
+reg [FIFO_ADDR_WIDTH-1:0] wr2rd_txn_wptr = 0 ;
+reg [FIFO_ADDR_WIDTH-1:0] wr2rd_txn_rptr = 0 ;
+//==========================================================
+
 always @(posedge clk) begin 
     monitor_wresp_done <= 0 ;
     if (bready && bvalid) begin
         monitor_wresp <= bresp ;
         monitor_wresp_count <= monitor_wresp_count + 1 ;
         monitor_wresp_done <= 1 ;
+        if (bresp === 2'b00) begin
+            if ( wr2rd_txn_wptr + 1 !== wr2rd_txn_rptr) begin
+                wr2rd_addr_fifo[wr2rd_txn_wptr] <= monitor_waddr ;
+                wr2rd_data_fifo[wr2rd_txn_wptr] <= monitor_wdata ;
+                wr2rd_txn_wptr <= wr2rd_txn_wptr + 1 ;
+            end
+            else $display ("[FIFO-OVERFLOW] REJECTING NEW VALUES FOR READ TRANSACTION !");
+        end
     end
 end
+
 //scoreboard
 always @(posedge clk) begin
     if (monitor_wresp_done) begin
@@ -219,28 +241,22 @@ always @(posedge clk) begin
         end
     end 
 end
-// read monitor and scoreboard
 
+// read monitor and scoreboard
 reg manual_read_valid = 0 ;
 reg manual_read_ready = 0 ;
-reg read_done = 0 ;
-integer read_done_count = 0 ;
 
 initial begin
     forever begin
         @(posedge clk) 
         manual_read_ready = 0 ;
-        read_done = 0 ;
-        if (monitor_wresp_done && (monitor_wresp === 2'b00)) begin
+        if (wr2rd_txn_rptr !== wr2rd_txn_wptr) begin
             axi_read(monitor_waddr,readData) ;
-            read_done = 1 ;
-            read_done_count = read_done_count + 1 ;
+            wr2rd_txn_rptr = wr2rd_txn_rptr + 1 ;
         end
-         if (manual_read_valid) begin
+        else if (manual_read_valid) begin
             manual_read_ready = 1 ;
             axi_read(readAddr,readData) ;
-            read_done = 1 ;
-            read_done_count = read_done_count + 1 ;
         end
     end
 end
@@ -250,12 +266,14 @@ reg             monitor_raddr_done = 0 ;
 integer        monitor_raddr_count = 0 ;
 
 reg [DATA_WIDTH-1:0] monitor_rdata = 0 ;
+reg [DATA_WIDTH-1:0] monitor_temp_rdata ;
 reg             monitor_rdata_done = 0 ;
 integer        monitor_rdata_count = 0 ;
 
 integer monitor_read_pass = 0 ;
 integer manual_read_pass  = 0 ;
 integer monitor_read_fail = 0 ;
+integer monitor_read_feedback_error = 0 ;
 
 always @(posedge clk) begin 
     monitor_raddr_done <= 0 ;
@@ -263,6 +281,7 @@ always @(posedge clk) begin
         monitor_raddr <= araddr ;
         monitor_raddr_count <= monitor_raddr_count + 1 ;
         monitor_raddr_done <= 1 ;
+        monitor_temp_rdata <= DUT.memory.memory[araddr] ;
     end
 end    
 always @(posedge clk) begin 
@@ -281,8 +300,11 @@ initial begin
             $display("[READ-BACK PASS] Addr:%h! RTL Mem:%h | TB Received:%h", monitor_raddr, DUT.memory.memory[monitor_raddr], monitor_rdata);
             monitor_read_pass = (manual_read_ready) ? monitor_read_pass : monitor_read_pass + 1 ;
             manual_read_pass = (manual_read_ready) ? manual_read_pass + 1 : manual_read_pass ;
+        end else if (monitor_rdata === monitor_temp_rdata)begin
+            $display("[READ-BACK PASS ERROR DETECTED] Addr:%h RTL Mem:%h | TB Received:%h Temp Mem:%h", monitor_raddr, DUT.memory.memory[monitor_raddr], monitor_rdata, monitor_temp_rdata);
+            monitor_read_feedback_error = monitor_read_feedback_error + 1 ;
         end else begin
-            $error("[READ-BACK FAIL] Addr:%h! RTL Mem:%h | TB Received:%h", monitor_raddr, DUT.memory.memory[monitor_raddr], monitor_rdata);
+            $error("[READ-BACK FAIL] Addr:%h RTL Mem:%h | TB Received:%h Temp Mem:%h", monitor_raddr, DUT.memory.memory[monitor_raddr], monitor_rdata, monitor_temp_rdata);
             monitor_read_fail = monitor_read_fail + 1 ;
         end
     end
@@ -320,55 +342,72 @@ araddr  = 0 ;
 rready  = 0 ; 
 ar_done = 0 ;
 
-WRITE_COUNT = 300 ;
-READ_COUNT  = 0 ;
-//WRITE_COUNT = ({$random} * {$random(SEED)})%500 ;
-//READ_COUNT  = ({$random} * {$random(SEED)})%500 ;
+WRITE_COUNT = 100000;
+READ_COUNT  = 100000;
+//WRITE_COUNT = ({$random} * {$random(SEED)})%100000 ;
+//READ_COUNT  = ({$random} * {$random(SEED)})%100000 ;
 
 @(posedge resetn)   //waiting for reset
 @(posedge clk)
 
 fork
-    begin //test sequence
-        for (writeCounter = 0 ; writeCounter < WRITE_COUNT ; writeCounter = writeCounter + 1) begin
-            writeAddr   = (({$random})%54) + 10 ;
-            writeData   = {$random} ;  
-            writeStrobe = 4'b1111  ;
-            writeDelay  = {$random}%500 ;
-            axi_write(writeAddr,writeData,writeStrobe) ;
-            #(writeDelay) ;
-        end
+  begin //test sequence
+      for (writeCounter = 0 ; writeCounter < WRITE_COUNT ; writeCounter = writeCounter + 1) begin
+          writeAddr   = $unsigned((({$random} * {$random(SEED)})%54) + 10) ;
+          writeData   = $unsigned({$random} * {$random(SEED)}) ;  
+          writeStrobe = 4'b1111  ;
+          writeDelay  = $unsigned(({$random} * {$random(SEED)})%500) ;
+          axi_write(writeAddr,writeData,writeStrobe) ;
+          #(writeDelay) ;
+      end
 //        axi_write(5'b01011, 32'b00010010010010000001001101101100, 4'b1111) ;
-    end
-    begin
-        for (readCounter = 0 ; readCounter < READ_COUNT ; readCounter = readCounter + 1) begin
-            readAddr   = $unsigned(({$random} * {$random(SEED)})%64 ) ;
-            readDelay  = $unsigned(({$random} * {$random(SEED)})%500) ;
-            manual_read_valid = 1 ;
-            @ (posedge manual_read_ready);
-            manual_read_valid = 0 ;
-            #(readDelay) ;
-        end
+  end
+  begin
+      for (readCounter = 0 ; readCounter < READ_COUNT ; readCounter = readCounter + 1) begin
+          readAddr   = $unsigned(({$random} * {$random(SEED)})%64 ) ;
+          readDelay  = $unsigned(({$random} * {$random(SEED)})%500) ;
+          manual_read_valid = 1 ;
+          @ (posedge manual_read_ready);
+          manual_read_valid = 0 ;
+          #(readDelay) ;
+      end
 //        axi_read(5'b01011, readData) ;
-    end
+  end
 join
-$display("COUNT MONITOR WRITE ADDRESS: %0d", monitor_waddr_count);
-$display("COUNT MONITOR WRITE DATA: %0d", monitor_wdata_count);
-$display("COUNT MONITOR WRITE FEEDBACK: %0d", monitor_wresp_count);
-$display("COUNT MONITOR READ ADRESS: %0d", monitor_raddr_count);
-$display("COUNT MONITOR READ DATA: %0d", monitor_rdata_count);
+
+#1000; //buffer added to allow task to finish its stuff before finalising results.
 $display("==============================================================");
+$display("[CHANNEL MONITOR]");
+$display("[AW]: COUNT MONITOR WRITE ADDRESS: %0d", monitor_waddr_count);
+$display("[W] : COUNT MONITOR WRITE DATA: %0d", monitor_wdata_count);
+$display("[B] : COUNT MONITOR WRITE FEEDBACK: %0d", monitor_wresp_count);
+$display("[AR]: COUNT MONITOR READ ADRESS: %0d", monitor_raddr_count);
+$display("[R] : COUNT MONITOR READ DATA: %0d", monitor_rdata_count);
 $display("==============================================================");
+$display("[WRITE]");
+$display("WRITE PASS: %0d", monitor_write_pass);
+$display("WRITE ERROR RECOGNIZED: %0d", monitor_write_feedback_error);
+$display("WRITE FAIL: %0d", monitor_write_fail);
+$display("-------------------------------");
+$display("TOTAL WRITE PASS: %0d", monitor_write_pass + monitor_write_feedback_error);
+$display("TOTAL WRITE FAIL: %0d", monitor_write_fail);
+$display("==============================================================");
+$display("[READ]");
 $display("READ UVM PASS: %0d",monitor_read_pass);
 $display("READ MANUAL PASS: %0d",manual_read_pass);
+$display("READ ERROR RECOGNIZED: %0d",monitor_read_feedback_error);
 $display("READ FAIL: %0d",monitor_read_fail);
-$display("TOTAL READ PASS: %0d",manual_read_pass + monitor_read_pass);
-$display("TOTAL READ DONE COUNT: %0d",read_done_count);
+$display("-------------------------------");
+$display("TOTAL READ PASS: %0d",manual_read_pass + monitor_read_pass + monitor_read_feedback_error);
+$display("TOTAL READ FAIL: %0d",monitor_read_fail);
 $display("==============================================================");
-$display("WRITE ERROR RECOGNIZED: %0d", monitor_write_feedback_error);
-$display("WRITE PASS: %0d", monitor_write_pass);
-$display("WRITE FAIL: %0d", monitor_write_fail);
-$display("TOTAL WRITE PASS: %0d", monitor_write_pass + monitor_write_feedback_error);
+$display("[SUMMARY]");
+$display("WRITE SUCCESSFUL: %0d", monitor_write_pass + monitor_write_feedback_error);
+$display("WRITE FAILED    : %0d", monitor_write_fail);
+$display("READ  SUCCESSFUL: %0d",manual_read_pass + monitor_read_pass + monitor_read_feedback_error);
+$display("READ  FAILED    : %0d",monitor_read_fail);
+$display("Transaction Success Rate  :%0.3f%%", (100*(monitor_read_pass+manual_read_pass+monitor_read_feedback_error)/(monitor_write_pass+READ_COUNT)));
+$display("==============================================================");
 //end simulation
 #1000    ;
 $stop(0);

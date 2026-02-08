@@ -1,7 +1,7 @@
 module memory #(
     parameter DATA_WIDTH = 32 ,
     parameter DATA_DEPTH = 64 ,
-    parameter ADDR_WIDTH = 5  ,
+    parameter ADDR_WIDTH = 6  ,
     parameter STRB_WIDTH = 4
 ) (
     input  wire                  clk    ,
@@ -59,7 +59,7 @@ always @(posedge clk or negedge resetn) begin
     end else begin
         if (WEN && AWADDR <= 9) begin
             wrespReg <= SLVERR ;
-        end else if (WEN && AWADDR >= 10 && AWADDR <= 62) begin
+        end else if (WEN && AWADDR >= 10 && AWADDR <= 63   ) begin
             wrespReg <= OKAY   ;
         end else begin
             wrespReg <= DECERR ;
@@ -97,7 +97,7 @@ always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
         rrespReg <= DECERR;
     end else begin
-        if (REN && ARADDR <= 62) begin
+        if (REN && ARADDR <= 63) begin
             rrespReg <= OKAY ;
         end else if (REN) begin
             rrespReg <= DECERR ;

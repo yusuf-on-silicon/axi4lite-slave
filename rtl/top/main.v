@@ -1,6 +1,6 @@
 module main #(
 parameter DATA_WIDTH = 32 ,
-parameter ADDR_WIDTH = 5  ,
+parameter ADDR_WIDTH = 6  ,
 parameter STRB_WIDTH = 4 
 
 )(

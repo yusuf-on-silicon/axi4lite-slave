@@ -1,0 +1,17 @@
+================ Regression Summary ================
+Channel Handshakes:
+  AW: 100000
+  W : 100000
+  B : 100000
+  AR: 200000
+  R : 200000
+
+Scoreboard Results:
+  WRITE PASS: 100000
+  WRITE FAIL: 0
+  READ PASS : 200000
+  READ FAIL : 0
+  Protocol Errors Recognized: 429
+
+Transaction Success Rate: 100.000%
+====================================================

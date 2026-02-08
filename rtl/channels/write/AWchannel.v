@@ -1,5 +1,5 @@
 module AWchannel #(
-parameter ADDR_WIDTH = 5  
+parameter ADDR_WIDTH = 6  
 )(
     input  wire                 clk       ,         //clock
     input  wire                 resetn    ,         //reset  - logic activated when low - active low 

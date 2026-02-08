@@ -1,7 +1,7 @@
 module write #(
 parameter DATA_WIDTH = 32 ,
 parameter DATA_DEPTH = 64 ,
-parameter ADDR_WIDTH = 5  ,
+parameter ADDR_WIDTH = 6  ,
 parameter STRB_WIDTH = 4  ,
 parameter RESP_WIDTH = 2  
 )
