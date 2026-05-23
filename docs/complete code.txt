@@ -1,0 +1,905 @@
+module main #(
+parameter DATA_WIDTH = 32 ,
+parameter ADDR_WIDTH = 6  ,
+parameter STRB_WIDTH = 4 
+
+)(
+input  wire                 clk     ,
+input  wire                 resetn  ,
+
+input  wire                 AWVALID ,
+input  wire[ADDR_WIDTH-1:0] AWADDR  ,
+output wire                 AWREADY ,
+
+input  wire                 WVALID  ,
+input  wire[DATA_WIDTH-1:0] WDATA   ,
+input  wire[STRB_WIDTH-1:0] WSTRB   ,
+output wire                 WREADY  ,
+
+input  wire                 BREADY  ,
+output wire[1:0]            BRESP   ,
+output wire                 BVALID  ,
+
+input  wire                 ARVALID ,
+input  wire[ADDR_WIDTH-1:0] ARADDR  ,
+output wire                 ARREADY ,
+
+input  wire                 RREADY  ,
+output wire[DATA_WIDTH-1:0] RDATA   ,
+output wire[1:0]            RRESP   ,
+output wire                 RVALID  
+);
+
+//INTERNAL SIGNALS
+wire                  wen        ;
+wire [STRB_WIDTH-1:0] wstrbout   ;
+wire [DATA_WIDTH-1:0] wdataout   ;
+wire [ADDR_WIDTH-1:0] awaddrout  ;
+wire [1:0]            wresp      ;
+wire                  wrespready ;
+
+wire                  ren        ;
+wire [ADDR_WIDTH-1:0] araddrout  ;
+wire                  mready     ;
+wire [DATA_WIDTH-1:0] mdata      ;
+wire [1:0]            mresp      ;
+
+//WRITE MODULE
+write WriteEntity (
+    .clk        (clk)        ,   //Global
+    .resetn     (resetn)     ,
+
+    .AWVALID    (AWVALID)    ,   //1 AW channel - capture write address
+    .AWADDR     (AWADDR)     ,
+    .AWREADY    (AWREADY)    ,
+
+    .WVALID     (WVALID)     ,   //1 W channel  - capture write data
+    .WDATA      (WDATA)      ,
+    .WSTRB      (WSTRB)      ,
+    .WREADY     (WREADY)     ,
+
+    .WEN        (wen)        ,   //2 Write     - send write data and address from slave to memory
+    .WDATAOUT   (wdataout)   ,
+    .WSTRBOUT   (wstrbout)   ,
+    .AWADDROUT  (awaddrout)  ,
+
+    .WRESP      (wresp)      ,   //3 feedback IN  - receive feedback from memory
+    .WRESPREADY (wrespready) ,
+
+    .BVALID     (BVALID)     ,
+    .BRESP      (BRESP)      ,   //4 feedback OUT - send feedback to all modules of write and master
+    .BREADY     (BREADY)                            
+);
+
+read ReadEntity (
+    .clk        (clk)        ,     //Basic Inputs
+    .resetn     (resetn)     ,
+       
+    .ARVALID    (ARVALID)    ,     //1 AR channel - capture Read address
+    .ARADDR     (ARADDR)     ,
+    .ARREADY    (ARREADY)    ,
+
+    .REN        (ren)        ,     //2 AR channel - Send data to memory
+    .ARADDROUT  (araddrout)  ,
+  
+    .MREADY     (mready)     ,     //3 R channel  - Get Data from memory
+    .MDATA      (mdata)      ,
+    .MRESP      (mresp)      ,
+
+    .RVALID     (RVALID)     ,     //4 R channel  - send data to master
+    .RDATA      (RDATA)      ,
+    .RRESP      (RRESP)      ,
+    .RREADY     (RREADY)                                      
+);
+
+//MEMORY INITIALISATION
+memory memory(
+    .clk        (clk)        ,
+    .resetn     (resetn)     ,
+
+    .WEN        (wen)        ,
+    .AWADDR     (awaddrout)  ,
+    .WSTRB      (wstrbout)   ,
+    .WDATA      (wdataout)   ,
+    .WRESP      (wresp)      ,
+    .WDONE      (wrespready) ,
+
+    .REN        (ren)        ,
+    .ARADDR     (araddrout)  ,
+    .RDATA      (mdata)      ,
+    .RRESP      (mresp)      ,
+    .RDONE      (mready)                             
+);
+
+
+endmodule
+
+module memory #(
+    parameter DATA_WIDTH = 32 ,
+    parameter DATA_DEPTH = 64 ,
+    parameter ADDR_WIDTH = 6  ,
+    parameter STRB_WIDTH = 4
+) (
+    input  wire                  clk    ,
+    input  wire                  resetn ,
+
+    input  wire                  WEN    ,
+    input  wire[ADDR_WIDTH-1:0]  AWADDR ,
+    input  wire[STRB_WIDTH-1:0]  WSTRB  ,
+    input  wire[DATA_WIDTH-1:0]  WDATA  ,
+    output wire[1:0]             WRESP  , 
+    output wire                  WDONE  , 
+
+    input  wire                  REN    ,
+    input  wire[ADDR_WIDTH-1:0]  ARADDR ,
+    output wire[DATA_WIDTH-1:0]  RDATA  ,
+    output wire[1:0]             RRESP  ,
+    output wire                  RDONE  
+);
+
+//Parameter
+parameter OKAY   = 00 ;
+parameter SLVERR = 01 ;
+parameter DECERR = 11 ;
+
+//Memory initialisation    -    read feautres to read description of memory
+reg [DATA_WIDTH-1:0] memory[DATA_DEPTH-1:0] ;
+
+//Internel connections & variables
+reg [DATA_WIDTH-1:0] rdataReg ;
+reg [1:0]            rrespReg ;
+reg                  rdoneReg ;
+
+reg [1:0] wrespReg ;
+reg       wdoneReg ;
+
+integer i ;
+
+//Memory READ ONLY setup
+initial begin
+    for (i=0 ; i<10 ; i=(i + 1)) begin
+        memory[i] <= 10-i;
+    end    
+end
+
+
+//------WRITE---------------//
+// Output assignment
+assign WRESP = wrespReg;
+assign WDONE = wdoneReg;
+
+// Response logic
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+        wrespReg <= DECERR;
+    end else begin
+        if (WEN && AWADDR <= 9) begin
+            wrespReg <= SLVERR ;
+        end else if (WEN && AWADDR >= 10 && AWADDR <= 63   ) begin
+            wrespReg <= OKAY   ;
+        end else begin
+            wrespReg <= DECERR ;
+        end
+    end
+end
+
+// Write logic
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+        wdoneReg <= 0;
+    end else begin
+        wdoneReg <= 0;
+        if (WEN && wrespReg==OKAY) begin
+            if (WSTRB[0]) memory[AWADDR][07:00] <= WDATA[07:00];
+            if (WSTRB[1]) memory[AWADDR][15:08] <= WDATA[15:08];
+            if (WSTRB[2]) memory[AWADDR][23:16] <= WDATA[23:16];
+            if (WSTRB[3]) memory[AWADDR][31:24] <= WDATA[31:24];
+            wdoneReg <= 1;
+        end
+        else if (WEN && wrespReg!=OKAY) begin
+            wdoneReg <= 1;                      // this does not save the error values and proceeds to the next operation.
+        end
+    end
+end
+
+//------READ----------------//
+// Output assignment
+assign RDATA = rdataReg ;
+assign RRESP = rrespReg ;
+assign RDONE = rdoneReg ;
+
+// Response logic
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+        rrespReg <= DECERR;
+    end else begin
+        if (REN && ARADDR <= 63) begin
+            rrespReg <= OKAY ;
+        end else if (REN) begin
+            rrespReg <= DECERR ;
+        end
+    end
+end
+
+// Read logic
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+        rdataReg <= 0 ;
+        rdoneReg <= 0 ;
+    end else begin
+        rdoneReg <= 0 ;
+        if (REN && rrespReg == OKAY) begin
+            rdataReg <= memory[ARADDR] ;
+            rdoneReg <= 1 ;
+        end
+    end
+end
+
+endmodule
+
+/*
+11 - address error - outside range
+01 - slave error   - writing on read only
+00 - OKAY          - successful
+
+memory description -
+00 : 10 - read only  (will return SLVERR)
+11 : 62 - write/read (will return OKAY  )
+63 : 63 - invalid    (will return DECERR)
+*/
+
+module read #(
+parameter DATA_WIDTH = 32 ,
+parameter DATA_DEPTH = 64 ,
+parameter ADDR_WIDTH = 6  ,
+parameter RESP_WIDTH = 2  
+)
+(
+    input  wire                 clk        ,     //Basic Inputs
+    input  wire                 resetn     , 
+       
+    input  wire                 ARVALID    ,     //1. AR channel   - capture write address
+    input  wire[ADDR_WIDTH-1:0] ARADDR     ,   
+    output wire                 ARREADY    ,   
+
+    output wire                 REN        ,     //2. AR channel - Send data to memory     
+    output wire[ADDR_WIDTH-1:0] ARADDROUT  , 
+  
+    input  wire                 MREADY     ,     //3. R channel  - Get Data from memory
+    input  wire[DATA_WIDTH-1:0] MDATA      ,
+    input  wire[RESP_WIDTH-1:0] MRESP      ,         
+
+    output wire                 RVALID     ,     //4. R channel  - send data to master
+    output wire[DATA_WIDTH-1:0] RDATA      ,
+    output wire[RESP_WIDTH-1:0] RRESP      ,
+    input  wire                 RREADY     
+);
+
+wire rrespready ;
+ARchannel ARentity (
+    .clk        (clk),        
+    .resetn     (resetn),            
+    .ARVALID    (ARVALID),            
+    .ARADDR     (ARADDR),        
+    .ARREADY    (ARREADY),            
+    .RRESPREADY (rrespready),            
+    .RRESP      (RRESP),             
+    .REN        (REN),        
+    .ARADDROUT  (ARADDROUT)
+);
+
+Rchannel Rentity (
+    .clk        (clk)        ,
+    .resetn     (resetn)     ,    
+    .MREADY     (MREADY)     ,    
+    .MDATA      (MDATA)      ,
+    .MRESP      (MRESP)      ,
+    .RVALID     (RVALID)     ,    
+    .RDATA      (RDATA)      ,
+    .RRESP      (RRESP)      ,
+    .RRESPREADY (rrespready) ,        
+    .RREADY     (RREADY)        
+);
+endmodule 
+
+module write #(
+parameter DATA_WIDTH = 32 ,
+parameter DATA_DEPTH = 64 ,
+parameter ADDR_WIDTH = 6  ,
+parameter STRB_WIDTH = 4  ,
+parameter RESP_WIDTH = 2  
+)
+(
+  input  wire                 clk        ,     //Global 
+  input  wire                 resetn     , 
+     
+  input  wire                 AWVALID    ,     //1 AW channel - capture write address
+  input  wire[ADDR_WIDTH-1:0] AWADDR     ,   
+  output wire                 AWREADY    ,   
+       
+  input  wire                 WVALID     ,     //1 W channel  - capture write data  
+  input  wire[DATA_WIDTH-1:0] WDATA      ,   
+  input  wire[STRB_WIDTH-1:0] WSTRB      ,   
+  output wire                 WREADY     ,   
+       
+  output wire                 WEN        ,     //2. Write     - send write data and address from slave to memory 
+  output wire[DATA_WIDTH-1:0] WDATAOUT   ,   
+  output wire[STRB_WIDTH-1:0] WSTRBOUT   ,   
+  output wire[ADDR_WIDTH-1:0] AWADDROUT  ,   
+         
+  input  wire[RESP_WIDTH-1:0] WRESP      ,     //3. feedback IN  - receive feedback from memory 
+  input  wire                 WRESPREADY , 
+  
+  output wire                 BVALID     ,   
+  output wire[RESP_WIDTH-1:0] BRESP      ,     //4. feedback OUT - send feedback to all modules of write and master
+  input  wire                 BREADY      
+);
+
+wire dataReady  ;
+wire addrReady  ;
+wire brespready ;
+
+AWchannel AWentity (
+    .clk        (clk       ),       // IN  : From   Global             |  <-------   Glo 
+    .resetn     (resetn    ),       // IN  : From   Global             |  <-------   Glo
+    .AWVALID    (AWVALID   ),       // IN  : From   Master             |  <-------   Mas
+    .AWADDR     (AWADDR    ),       // IN  : From   Master             |  <-------   Mas
+    .AWREADY    (AWREADY   ),       // OUT : To     Master             |    -------> Mas
+    .BRESPREADY (brespready),       // IN  : From   Slave    Bchannel  |  <-------   SB
+    .BRESP      (BRESP     ),       // IN  : From   Slave    Bchannel  |  <-------   SB
+    .DATAREADY  (dataReady ),       // IN  : From   Slave    Wchannel  |  <-------   SW
+    .ADDRREADY  (addrReady ),       // OUT : To     Slave    Wchannel  |    -------> SW
+    .AWADDROUT  (AWADDROUT )        // OUT : To     Memory             |    -------> Mem
+);
+
+Wchannel Wentity (
+    .clk        (clk       ),       // IN  : From   Global             |  <-------   Glo
+    .resetn     (resetn    ),       // IN  : From   Global             |  <-------   Glo
+    .WVALID     (WVALID    ),       // IN  : From   Master             |  <-------   Mas
+    .WDATA      (WDATA     ),       // IN  : From   Master             |  <-------   Mas
+    .WSTRB      (WSTRB     ),       // IN  : From   Master             |  <-------   Mas
+    .WREADY     (WREADY    ),       // OUT : To     Master             |    -------> Mas
+    .BRESPREADY (brespready),       // IN  : From   Slave    Bchannel  |  <-------   SB
+    .BRESP      (BRESP     ),       // IN  : From   Slave    Bchannel  |  <-------   SB
+    .DATAREADY  (dataReady ),       // OUT : To     Slave    AWchannel |    -------> SAW
+    .ADDRREADY  (addrReady ),       // IN  : From   Slave    AWchannel |  <-------   SAW
+    .WDATAOUT   (WDATAOUT  ),       // OUT : To     Memory             |    -------> Mem
+    .WSTRBOUT   (WSTRBOUT  )        // OUT : To     Memory             |    -------> Mem
+);
+
+Bchannel Bentity (
+    .clk        (clk       ),       // IN  : From   Global             |  <-------   Glo
+    .resetn     (resetn    ),       // IN  : From   Global             |  <-------   Glo
+    .BVALID     (BVALID    ),       // OUT : To     Master             |  <-------   Mas
+    .BRESP      (BRESP     ),       // OUT : To     Many               |  <-------   Mas,SAW,SW
+    .BREADY     (BREADY    ),       // IN  : From   Master             |  <-------   Mas
+    .BRESPREADY (brespready),       // OUT : To     Slave    AW,W      |    -------> SAW,SW
+    .WRESP      (WRESP     ),       // IN  : From   Memory             |  <-------   Mem
+    .WRESPREADY (WRESPREADY)        // IN  : From   Memory             |  <-------   Mem
+);
+
+assign WEN = (addrReady && dataReady) ? 1 : 0;  // Memory Write enable - High when AW & W Ready
+
+endmodule
+
+module ARchannel #(
+parameter ADDR_WIDTH = 6  
+)(
+    input  wire                 clk       ,         //clock
+    input  wire                 resetn    ,         //reset  - logic activated when low - active low 
+    
+    input  wire                 ARVALID   ,         //input  - flag ready to send            |
+    input  wire[ADDR_WIDTH-1:0] ARADDR    ,         //input  - data from master to slave     |---> handshake
+    output wire                 ARREADY   ,         //output - flag master, ready to receive | 
+     
+    input  wire                 RRESPREADY,         //input  - flag feedback ready       
+    input  wire[1:0]            RRESP     ,         //input  - receives feedback from memory
+     
+    output wire                 REN       ,         //output - flag memory, sending read address
+    output wire[ADDR_WIDTH-1:0] ARADDROUT           //output - sends address to memory
+);
+
+//FINITE STATE MACHINE - FSM
+parameter IDLE = 2'b00 ;
+parameter READ = 2'b01 ;
+parameter DONE = 2'b10 ;
+reg[1:0]  currentState,nextState ; 
+ 
+//INTERNAL SIGNALS AND FLAGS
+reg[ADDR_WIDTH-1:0] araddrReg  = 0 ;        //drive  - ARADDROUT (temp storage of address    )
+reg                 renReg     = 0 ;        //drive  - REN       (flags enable               )
+reg                 arreadyReg = 0 ;        //drive  - ARREADY   (indicate ready for command )
+reg                 addrReady  = 0 ;        //signal - Internal  (flags address ready to send)
+
+//Sequential - State Register
+always @(posedge clk or negedge resetn) begin                 
+    if(!resetn) begin
+        currentState <= IDLE ;
+    end else begin
+        currentState <= nextState ;
+    end
+end
+
+//Combinational - Next State Logic
+always @(*) begin
+    nextState = currentState ;
+    case (currentState)
+        IDLE: begin
+            if (ARVALID) begin
+                nextState = READ ;
+            end
+        end
+        READ: begin
+            if (addrReady) begin
+                nextState = DONE ;                                   
+            end
+        end
+        DONE: begin 
+            if (RRESPREADY) begin
+                case (RRESP) 
+                      2'b00: nextState = IDLE ;    //OKAY   - successful
+                      2'b01: nextState = READ ;    //SLVERR - internal issue, re-attempt
+                      2'b10: nextState = IDLE ;    //EXOKAY - used for axi4-full, irrelevant here
+                      2'b11: nextState = IDLE ;    //DECERR - wrong address receieved, re-collect address
+                    default: nextState = IDLE ;    //default fallback
+                endcase
+            end else begin
+                nextState = currentState ;          //stay here if feedback not received
+            end
+        end
+        default: nextState = IDLE ;                 //default fallback
+    endcase
+end
+
+//Sequential - Output Logic
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+        arreadyReg <= 0 ;                                                 
+        renReg     <= 0 ;                                                 
+        araddrReg  <= 0 ;
+        addrReady  <= 0 ;
+    end else begin
+        case (currentState)
+            IDLE: begin
+                arreadyReg <= 1 ;
+            end
+            READ: begin
+                arreadyReg <= 0 ;
+                if (!addrReady) begin
+                    araddrReg <= ARADDR ;
+                    renReg <= 1         ;
+                    addrReady <= 1      ;
+                end 
+            end
+            DONE: begin
+                renReg <= 0 ;
+                addrReady <= 0;
+            end
+        endcase
+    end
+end
+
+//Output Drivers
+assign ARREADY   = arreadyReg ;                     //drive - used for Handshake with master  
+assign ARADDROUT = araddrReg  ;                     //drive - send out address to memory
+assign REN       = renReg     ;                     //drive - flags address is valid
+
+endmodule
+
+/*
+---------------FEATURES---------------------------------
+    - directly connected with memory and master
+    - uses 2 sequential blocks and 1 combinatinoal block
+    - 
+
+IMPLEMENTED USING  3 SEPARATE LOGIC BLOCKS  TO KEEP THINGS 
+CLEAN, MANAGEABLE AND STRICTLY DISTINGUISH BLOCK FUNCTIONS
+The blocks  being 2  sequential and 1  combinational,  the 
+sequential blocks update according to the clocks and performs
+the actual logic at approprtiate times like when writing
+*/
+
+module Rchannel #(
+parameter DATA_WIDTH = 32 
+)(
+    input  wire                 clk        ,     //clock
+    input  wire                 resetn     ,     //reset - logic activated when low - active low 
+
+    input  wire                 MREADY     ,     //flag   - tells when feedback comes      
+    input  wire[DATA_WIDTH-1:0] MDATA      ,     //output - actual data from memory to slave
+    input  wire[1:0]            MRESP      ,     //input  - data write feedback from memory
+
+    output wire                 RVALID     ,     //flag   - tells input ready to come      |
+    output wire[DATA_WIDTH-1:0] RDATA      ,     //input  - data from master to slave      |---> handshake
+    output wire[1:0]            RRESP      ,     //input  - data from master to slave      |---> handshake
+    output wire                 RRESPREADY ,     //flag   - tells input ready to receive   |     
+    input  wire                 RREADY           //flag   - tells input ready to receive   |     
+);
+
+//FINITE STATE MACHINE - FSM
+parameter IDLE = 2'b00 ;
+parameter READ = 2'b01 ;
+parameter DONE = 2'b10 ;
+reg[1:0] currentState, nextState ;
+
+//INTERNAL SIGNALS AND FLAGS
+reg[DATA_WIDTH-1:0] mdataReg   = 0 ;
+reg[DATA_WIDTH-1:0] rdataReg   = 0 ;
+reg[1:0]            mrespReg   = 0 ;
+reg[1:0]            rrespReg   = 0 ;
+reg                 readDone   = 0 ;
+reg                 rvalidReg  = 0 ;
+reg                 rrespready = 0 ;
+
+// CURRENT STATE UPDATE                     //updates actual state at clock
+always @(posedge clk or negedge resetn) begin                 
+    if(!resetn) begin
+        currentState <= IDLE ;
+    end else begin
+        currentState <= nextState ;
+    end
+end
+
+// NEXT STATE LOGIC                         //updates the next state when ever situation 
+always @(*) begin                           //allows and handling of errors
+    nextState = currentState ;
+    case (currentState)
+        IDLE: begin
+            if (MREADY) begin
+                nextState = READ ;
+            end
+        end
+        READ: begin
+            if (readDone && RREADY) begin
+                nextState = DONE ;
+            end
+        end
+        DONE: begin 
+            if (!readDone) begin
+                nextState = IDLE ;
+            end
+        end
+        default: nextState = IDLE ;             //default fallback
+    endcase
+end
+
+//CURRENT STATE LOGIC                           //sequential logic to take place at clock
+always @(posedge clk or negedge resetn) begin   //intervals driven by current state.                                              
+    if (!resetn) begin
+        rrespready <= 0 ;
+        rvalidReg  <= 0 ;
+        mdataReg   <= 0 ;
+        mrespReg   <= 0 ;
+        rdataReg   <= 0 ;
+        rrespReg   <= 0 ;
+        readDone   <= 0 ;
+    end else begin
+        case (currentState)
+            IDLE: begin
+                rrespready <= 0 ;
+                rvalidReg  <= 0 ;
+            end
+            READ: begin
+                if (!readDone) begin
+                    mrespReg  <= MRESP ;
+                    mdataReg  <= MDATA ;
+                    readDone  <= 1     ;
+                end
+            end
+            DONE: begin
+                readDone   <= 0 ;    
+                rvalidReg  <= 1 ;
+                rrespready <= 1 ;
+                rrespReg   <= mrespReg ;
+                if (mrespReg == 0) begin
+                    rdataReg <= mdataReg ;
+                end
+            end
+        endcase
+    end 
+end
+
+assign RRESPREADY = rrespready  ;
+assign RVALID     = rvalidReg ;
+assign RRESP      = rrespReg  ;
+assign RDATA      = rdataReg  ;
+
+endmodule
+
+module AWchannel #(
+parameter ADDR_WIDTH = 6  
+)(
+    input  wire                 clk       ,         //clock
+    input  wire                 resetn    ,         //reset  - logic activated when low - active low 
+    
+    input  wire                 AWVALID   ,         //input  - flag input ready               |
+    input  wire[ADDR_WIDTH-1:0] AWADDR    ,         //input  - data from master to slave      |---> handshake
+    output wire                 AWREADY   ,         //output - flag master, ready to receive  | 
+     
+    input  wire                 BRESPREADY,         //input  - flag tells when feedback valid      
+    input  wire[1:0]            BRESP     ,         //input  - feedback from Bchannel
+     
+    input  wire                 DATAREADY ,         //input  - flag Wchannel is ready
+    output wire                 ADDRREADY ,         //output - flag Slave, AWchannel is ready 
+
+    output wire[ADDR_WIDTH-1:0] AWADDROUT               //output - send address to memory
+);
+
+//FINITE STATE MACHINE - FSM
+parameter IDLE  = 2'b00 ;
+parameter WRITE = 2'b01 ;
+parameter DONE  = 2'b10 ;
+reg[1:0] currentState,nextState ; 
+
+//INTERNAL SIGNALS AND FLAGS
+reg[ADDR_WIDTH-1:0] awaddrReg  = 0 ;        //drive - AWADDROUT     (temp storage of address   )
+reg                 addrReady  = 0 ;        //drive - ADDRREADY (indicates AW channel ready)
+reg                 awreadyReg = 0 ;        //drive - AWREADY   (indicate ready for write  )
+
+//Sequential - State Register
+always @(posedge clk or negedge resetn) begin                 
+    if(!resetn) begin
+        currentState <= IDLE ;
+    end else begin
+        currentState <= nextState ;
+    end
+end
+
+//Combinational - Next State Logic
+always @(*) begin                          
+    nextState = currentState ;
+    case (currentState)
+        IDLE: begin
+            if (AWVALID && awreadyReg) begin
+                nextState = WRITE ;
+            end
+        end
+        WRITE: begin
+            if (addrReady && DATAREADY) begin
+                nextState = DONE ;                                   
+            end
+        end
+        DONE: begin 
+            if (BRESPREADY) begin
+                case (BRESP) 
+                      2'b00: nextState = IDLE  ;    //OKAY   - successful
+                      2'b01: nextState = IDLE  ;    //SLVERR - internal issue, re-attempt (ideally this stays WRITE - but since we ignore error and proceed we set it to IDLE.)
+                      2'b10: nextState = IDLE  ;    //EXOKAY - used for axi4-full, irrelevant here
+                      2'b11: nextState = IDLE  ;    //DECERR - wrong address receieved, re-collect address
+                    default: nextState = IDLE  ;    //default fallback
+                endcase
+            end else begin
+                nextState = currentState ;          //stay here if feedback not received
+            end
+        end
+        default: nextState = IDLE ;                 //default fallback
+    endcase
+end
+
+//Sequential - Output Logic
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin 
+        awreadyReg   <= 0    ;
+        awaddrReg    <= 0    ;
+        addrReady    <= 0    ;
+    end else begin 
+        case (currentState)
+            IDLE: begin
+                awreadyReg <= 1 ; 
+            end
+            WRITE: begin
+                awreadyReg <= 0 ;
+                if (!addrReady) begin
+                    awaddrReg <= AWADDR ;
+                    addrReady <= 1      ;
+                end
+            end
+            DONE: begin
+                addrReady <= 0 ;
+            end
+        endcase
+    end
+end
+
+//Output Drivers
+assign AWREADY   = awreadyReg ;                     //drive - used for Handshake with master  
+assign AWADDROUT = awaddrReg  ;                     //drive - send out address to memory
+assign ADDRREADY = addrReady  ;                     //drive - indicate address is ready to write
+
+endmodule
+
+module Bchannel #(
+)(
+    input  wire                 clk        ,         //clock
+    input  wire                 resetn     ,         //resetn - logic activated when low - active low 
+     
+    output wire                 BVALID     ,         //output - flag master, ready to send |
+    output wire[1:0]            BRESP      ,         //output - send Feedback              |---> handshake
+    output wire                 BRESPREADY ,         //output - flag sending feedback      |---> handshake
+    input  wire                 BREADY     ,         //input  - flag ready to receive      | 
+      
+    input  wire                 WRESPREADY ,         //input  - flags when feedback comes      
+    input  wire[1:0]            WRESP                //input  - receive feedback
+);
+
+//FINITE STATE MACHINE - FSM
+parameter IDLE = 1'b0 ;
+parameter SEND = 1'b1 ;
+reg[1:0] currentState,nextState ;
+
+//OUTPUT SIGNALS AND FLAGS
+reg      bvalidReg     = 0 ;                    //drive - BVALID     (flags master ready to send)
+reg      brespreadyReg = 0 ;                    //drive - BRESPREADY (flags slave ready to send )
+
+//INTERNAL STORAGE AND SIGNALS  
+reg[1:0] wrespReg      = 0 ;                    //input - WRESP      (temp storage of feedback from memory )
+reg      wrespreadyReg = 0 ;                    //input - WRESPREADY (flags when feedback comes from memory)
+
+//Sequential - State Register
+always @(posedge clk or negedge resetn) begin                 
+    if(!resetn) begin
+        currentState <= IDLE ;
+    end else begin
+        currentState <= nextState ;
+    end
+end
+
+//Combinational - Next State Logic
+always @(*) begin
+    nextState = currentState ;
+    case (currentState)
+        IDLE: begin
+            if (wrespreadyReg) begin
+                nextState = SEND ;
+            end
+        end
+        SEND: begin
+            if (brespreadyReg) begin
+                nextState = IDLE ;                                   
+            end
+        end
+        default: nextState = IDLE ;
+    endcase
+end
+
+//Sequential - Output Logic
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+        bvalidReg     <= 0 ;
+        brespreadyReg <= 0 ;
+        wrespreadyReg <= 0 ;
+        wrespReg      <= 0 ;
+    end else begin
+        case (currentState)
+            IDLE: begin
+                brespreadyReg <= 0 ;
+                bvalidReg     <= 0 ;
+                if (WRESPREADY) begin
+                    wrespreadyReg <= 1     ;
+                    wrespReg      <= WRESP ;
+                end
+            end
+            SEND: begin
+                wrespreadyReg <= 0 ;
+                bvalidReg     <= 1 ;
+                if (BREADY && bvalidReg) begin
+                    brespreadyReg <= 1   ;
+                end
+            end
+        endcase
+    end
+end
+
+//Output Drivers
+assign BRESP      = wrespReg       ;                  //drive - used for Handshake with master  
+assign BRESPREADY = brespreadyReg  ;                  //drive - send out address to memory
+assign BVALID     = bvalidReg      ;                  //drive - send out strobe to memory
+
+endmodule
+
+module Wchannel #(
+parameter DATA_WIDTH = 32 ,
+parameter STRB_WIDTH = 4  
+)(
+    input  wire                 clk       ,         //clock
+    input  wire                 resetn    ,         //reset - logic activated when low - active low 
+    
+    input  wire                 WVALID    ,         //input  - flag input ready              |
+    input  wire[DATA_WIDTH-1:0] WDATA     ,         //input  - data from master to slave     |---> handshake
+    input  wire[STRB_WIDTH-1:0] WSTRB     ,         //input  - srobe from master to slave    |
+    output wire                 WREADY    ,         //output - flag master, ready to receive | 
+     
+    input  wire                 BRESPREADY,         //input  - flag tells when feedback valid      
+    input  wire[1:0]            BRESP     ,         //input  - feedback from Bchannel
+     
+    input  wire                 ADDRREADY ,         //input  - flag AWchannel is ready
+    output wire                 DATAREADY ,         //output - flag Slave, Wchannel is ready
+
+    output wire[DATA_WIDTH-1:0] WDATAOUT  ,         //output - send data to memory
+    output wire[STRB_WIDTH-1:0] WSTRBOUT            //output - send data strobe to memory
+);
+
+//FINITE STATE MACHINE - FSM
+parameter IDLE  = 2'b00 ;
+parameter WRITE = 2'b01 ;
+parameter DONE  = 2'b10 ;
+reg[1:0] currentState,nextState ;
+
+//INTERNAL SIGNALS AND FLAGS
+reg[DATA_WIDTH-1:0] wdataReg  = 0 ;         //drive - WDATAOUT  (temp storage of data    )
+reg[STRB_WIDTH-1:0] wstrbReg  = 0 ;         //drive - WSTRBOUT  (temp storage of strb    )
+reg                 dataReady = 0 ;         //drive - DATAREADY (indicate W channel ready)
+reg                 wreadyReg = 0 ;         //drive - WREADY    (indicate ready for write)
+
+//Sequential - State Register
+always @(posedge clk or negedge resetn) begin                 
+    if(!resetn) begin
+        currentState <= IDLE ;
+    end else begin
+        currentState <= nextState ;
+    end
+end
+
+//Combinational - Next State Logic
+always @(*) begin
+    nextState = currentState ;
+    case (currentState)
+        IDLE: begin
+            if (WVALID && wreadyReg) begin
+                nextState = WRITE  ;
+            end
+        end
+        WRITE: begin
+            if (dataReady && ADDRREADY) begin
+                nextState = DONE   ;                                   
+            end
+        end
+        DONE: begin 
+            if (BRESPREADY) begin
+                case (BRESP) 
+                      2'b00: nextState = IDLE         ;    //OKAY   - successful
+                      2'b01: nextState = IDLE         ;    //SLVERR - internal issue, re-attempt (ideally this stays WRITE - but since we ignore error and proceed we set it to IDLE.)
+                      2'b10: nextState = IDLE         ;    //EXOKAY - used for axi4-full, irrelevant here
+                      2'b11: nextState = IDLE         ;    //DECERR - wrong address receieved, re-collect address
+                    default: nextState = IDLE         ;    //default fallback
+                endcase
+            end else begin
+                nextState = currentState ;      //stay here if feedback not received
+            end
+        end
+        default: nextState = IDLE ;             //default fallback
+    endcase
+end
+
+//Sequential - Output Logic
+always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+        wdataReg     <= 0    ;
+        wstrbReg     <= 0    ;
+        dataReady    <= 0    ;
+        wreadyReg    <= 0    ;
+    end else begin                                                
+        case (currentState)
+            IDLE: begin
+                wreadyReg <= 1 ;
+            end
+            WRITE: begin
+                wreadyReg <= 0     ;
+                wdataReg  <= WDATA ;
+                wstrbReg  <= WSTRB ;
+                dataReady <= 1     ;
+            end
+            DONE: begin
+                dataReady <= 0     ;
+            end
+        endcase
+    end
+end
+
+//Output Drivers
+assign WREADY    = wreadyReg ;                  //drive - used for Handshake with master  
+assign WDATAOUT  = wdataReg  ;                  //drive - send out address to memory
+assign WSTRBOUT  = wstrbReg  ;                  //drive - send out strobe to memory
+assign DATAREADY = dataReady ;                  //drive - indicate address is ready to write
+
+endmodule
